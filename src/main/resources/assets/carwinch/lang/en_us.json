@@ -1,0 +1,12 @@
+{
+  "itemGroup.carwinch": "Create: Car Winch",
+  "block.carwinch.winch": "Car Winch",
+  "block.carwinch.towbar": "Tow Bar",
+  "item.carwinch.iron_rope": "Steel Rope",
+  "carwinch.rope.tooltip": "Right click a winch, then a tow bar. Sneak + right click to cancel.",
+  "carwinch.rope.tooltip.anchored": "Anchored at %s, %s, %s",
+  "carwinch.rope.selected": "Anchor selected - now click a tow bar",
+  "carwinch.rope.cleared": "Selection cleared",
+  "carwinch.rope.occupied": "That anchor already has a rope",
+  "carwinch.rope.failed": "Could not hitch the rope - too far, or not a winch + tow bar pair"
+}

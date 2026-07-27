@@ -1,0 +1,7 @@
+{
+  "parent": "block/cube_all",
+  "textures": {
+    "all": "carwinch:block/towbar",
+    "particle": "carwinch:block/towbar"
+  }
+}

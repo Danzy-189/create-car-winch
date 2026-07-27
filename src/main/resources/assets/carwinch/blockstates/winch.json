@@ -1,0 +1,108 @@
+{
+  "variants": {
+    "facing=up,roped=false,powered=false": {
+      "model": "carwinch:block/winch"
+    },
+    "facing=up,roped=false,powered=true": {
+      "model": "carwinch:block/winch"
+    },
+    "facing=up,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1"
+    },
+    "facing=up,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1"
+    },
+    "facing=down,roped=false,powered=false": {
+      "model": "carwinch:block/winch",
+      "x": 180
+    },
+    "facing=down,roped=false,powered=true": {
+      "model": "carwinch:block/winch",
+      "x": 180
+    },
+    "facing=down,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1",
+      "x": 180
+    },
+    "facing=down,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1",
+      "x": 180
+    },
+    "facing=north,roped=false,powered=false": {
+      "model": "carwinch:block/winch",
+      "x": 90
+    },
+    "facing=north,roped=false,powered=true": {
+      "model": "carwinch:block/winch",
+      "x": 90
+    },
+    "facing=north,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1",
+      "x": 90
+    },
+    "facing=north,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1",
+      "x": 90
+    },
+    "facing=south,roped=false,powered=false": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 180
+    },
+    "facing=south,roped=false,powered=true": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 180
+    },
+    "facing=south,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 180
+    },
+    "facing=south,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 180
+    },
+    "facing=east,roped=false,powered=false": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 90
+    },
+    "facing=east,roped=false,powered=true": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 90
+    },
+    "facing=east,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 90
+    },
+    "facing=east,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 90
+    },
+    "facing=west,roped=false,powered=false": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 270
+    },
+    "facing=west,roped=false,powered=true": {
+      "model": "carwinch:block/winch",
+      "x": 90,
+      "y": 270
+    },
+    "facing=west,roped=true,powered=false": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 270
+    },
+    "facing=west,roped=true,powered=true": {
+      "model": "carwinch:block/winch_1",
+      "x": 90,
+      "y": 270
+    }
+  }
+}

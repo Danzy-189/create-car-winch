@@ -1,0 +1,100 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev' version '2.0.141'
+    id 'idea'
+}
+
+version = mod_version
+group = mod_group_id
+base { archivesName = mod_id }
+
+java.toolchain.languageVersion = JavaLanguageVersion.of(21)
+
+repositories {
+    maven { name = 'RyanHCode';  url = 'https://maven.ryanhcode.dev/releases' }
+    maven { name = 'CreateMod';  url = 'https://maven.createmod.net' }
+    maven { name = 'DevOS';      url = 'https://mvn.devos.one/snapshots' }
+    maven { name = 'BlameJared'; url = 'https://maven.blamejared.com' }
+    exclusiveContent {
+        forRepository { maven { name = 'Modrinth'; url = 'https://api.modrinth.com/maven' } }
+        filter { includeGroup 'maven.modrinth' }
+    }
+}
+
+configurations {
+    aeronauticsBundle
+    localRuntime
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+// Create: Aeronautics ships Simulated (the module that owns the rope physics) as a
+// jar-in-jar. We unpack it so we compile against exactly the API we run against.
+tasks.register('extractBundledMods', Copy) {
+    from({ configurations.aeronauticsBundle.collect { zipTree(it).matching { include 'META-INF/jarjar/*.jar' } } })
+    into layout.buildDirectory.dir('bundled-mods')
+    eachFile { it.relativePath = new RelativePath(true, it.name) }
+    includeEmptyDirs = false
+}
+
+tasks.named('compileJava') { dependsOn 'extractBundledMods' }
+
+neoForge {
+    version = project.neo_version
+
+    parchment {
+        mappingsVersion = project.parchment_mappings_version
+        minecraftVersion = project.parchment_minecraft_version
+    }
+
+    runs {
+        client { client() }
+        server { server(); gameDirectory = file('run/server'); programArgument '--nogui' }
+        configureEach { logLevel = org.slf4j.event.Level.DEBUG }
+    }
+
+    mods {
+        "${mod_id}" { sourceSet(sourceSets.main) }
+    }
+}
+
+dependencies {
+    aeronauticsBundle("maven.modrinth:create-aeronautics:${create_aeronautics_version}+mc${minecraft_version}") { transitive = false }
+
+    // Simulated / Aeronautics / Offroad, unpacked from the bundle above
+    compileOnly fileTree(dir: layout.buildDirectory.dir('bundled-mods'), include: '*.jar').builtBy('extractBundledMods')
+    // drop a manually supplied simulated-*.jar in ./libs to override
+    compileOnly fileTree(dir: 'libs', include: '*.jar')
+
+    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}:slim") { transitive = false }
+    compileOnly("net.createmod.ponder:ponder-neoforge:${ponder_version}+mc${minecraft_version}")
+    compileOnly("dev.engine-room.flywheel:flywheel-neoforge-api-${minecraft_version}:${flywheel_version}")
+    compileOnly("dev.ryanhcode.sable:sable-neoforge-${minecraft_version}:${sable_version}") { exclude group: 'foundry.veil' }
+    compileOnly("dev.ryanhcode.sable-companion:sable-companion-common-${minecraft_version}:${sable_companion_version}")
+    compileOnly("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") { transitive = false }
+
+    localRuntime("maven.modrinth:create:${create_mod_version}+mc${minecraft_version}")
+    localRuntime("maven.modrinth:sable:${sable_mod_version}+mc${minecraft_version}")
+    localRuntime("maven.modrinth:create-aeronautics:${create_aeronautics_version}+mc${minecraft_version}")
+    localRuntime("dev.engine-room.flywheel:flywheel-neoforge-${minecraft_version}:${flywheel_version}")
+}
+
+var generateModMetadata = tasks.register('generateModMetadata', ProcessResources) {
+    var replaceProperties = [
+        minecraft_version_range: minecraft_version_range,
+        neo_version            : neo_version,
+        loader_version_range   : loader_version_range,
+        mod_id                 : mod_id,
+        mod_name               : mod_name,
+        mod_license            : mod_license,
+        mod_version            : mod_version,
+        mod_authors            : mod_authors,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from 'src/main/templates'
+    into layout.buildDirectory.dir('generated/sources/modMetadata')
+}
+sourceSets.main.resources.srcDir generateModMetadata
+neoForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach { options.encoding = 'UTF-8' }

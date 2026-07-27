@@ -1,0 +1,12 @@
+{
+  "parent": "block/cube",
+  "textures": {
+    "particle": "carwinch:block/towbar",
+    "down": "carwinch:block/towbar",
+    "up": "carwinch:block/winch_hook",
+    "north": "carwinch:block/winch_hook",
+    "south": "carwinch:block/winch_hook",
+    "east": "carwinch:block/towbar",
+    "west": "carwinch:block/towbar"
+  }
+}
