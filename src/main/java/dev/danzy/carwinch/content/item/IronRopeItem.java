@@ -130,7 +130,7 @@ public class IronRopeItem extends Item {
             return false;
         }
 
-        if (a.createRope(b, dropItem)) {
+        if (a.createRope(b)) {
             level.playSound(null, posA, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
             level.playSound(null, posB, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
             return true;
