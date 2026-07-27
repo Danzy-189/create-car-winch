@@ -24,9 +24,9 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
     /** Hard cap on rope length, in blocks. */
     public static final double MAX_RANGE = 48.0;
     /** Blocks of rope pulled in per tick at full redstone strength. */
-    public static final float REEL_SPEED = 0.09F;
+    public static float movementSpeed REEL_SPEED = 0.09F;
     /** Blocks of rope let out per tick when the rope is taut and the winch is idle (freewheel). */
-    public static final float PAYOUT_SPEED = 0.16F;
+    public static float movementSpeed PAYOUT_SPEED = 0.16F;
     /** How much slack we tolerate before freewheeling. */
     public static final double SLACK_TOLERANCE = 1.03;
     public static final double RENDER_BOUNDING_BOX_INFLATION = 8.0;
