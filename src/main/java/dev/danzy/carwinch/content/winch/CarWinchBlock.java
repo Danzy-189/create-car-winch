@@ -68,7 +68,7 @@ public class CarWinchBlock extends Block
     @Override
     public BlockState getStateForPlacement(final BlockPlaceContext context) {
         return this.defaultBlockState()
-            .setValue(FACING, context.getClickedFace())
+            .setValue(FACING, context.getHorizontalDirection())
             .setValue(ROPED, false)
             .setValue(POWERED, context.getLevel().hasNeighborSignal(context.getClickedPos()));
     }
