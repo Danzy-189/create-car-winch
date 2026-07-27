@@ -70,8 +70,7 @@ public class CarWinchBlock extends Block
         return this.defaultBlockState()
                 .setValue(FACING, context.getClickedFace())
                 .setValue(ROPED, false)
-                .setValue(POWERED, context.getLevel().hasNeighborSignal(context.getClickedPos()))
-    }
+                .setValue(POWERED,context.getLevel().hasNeighborSignal(context.getClickedPos()))
 
     @Override
     protected BlockState rotate(final BlockState state, final Rotation rotation) {
