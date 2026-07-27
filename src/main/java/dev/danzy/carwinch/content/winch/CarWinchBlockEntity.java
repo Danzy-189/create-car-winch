@@ -104,6 +104,18 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
     private void updateRopeStrandExtension(final ServerRopeStrand strand) {
         final int power = this.level.getBestNeighborSignal(this.worldPosition);
 
+if (power <= 0) {
+    return;
+}
+
+float movementSpeed = -REEL_SPEED * (power / 15.0F);
+
+if (this.getCurrentExtension() > MAX_RANGE) {
+    movementSpeed = Math.min(0.0F, movementSpeed);
+}
+
+double extension = strand.getExtension() + movementSpeed;
+        
         final double desiredExtension = strand.getExtension()
                 + (strand.getPoints().size() - 2) * ServerRopeStrand.SEGMENT_LENGTH;
         final double currentExtension = strand.getCurrentExtension();
