@@ -112,7 +112,7 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
             return;
         }
 
-        final float movementSpeed = -REEL_SPEED * (power / 15.0F);
+        float movementSpeed = -REEL_SPEED * (power / 15.0F);
         
         if (currentExtension > MAX_RANGE) {
             movementSpeed = Math.min(0.0F, movementSpeed);
