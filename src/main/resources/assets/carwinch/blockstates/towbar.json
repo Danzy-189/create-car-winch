@@ -1,5 +1,38 @@
 {
   "variants": {
+    "facing=north,hooked=false": {
+      "model": "carwinch:block/towbar",
+      "y": 180
+    },
+    "facing=north,hooked=true": {
+      "model": "carwinch:block/towbar_1",
+      "y": 180
+    },
+    "facing=south,hooked=false": {
+      "model": "carwinch:block/towbar"
+    },
+    "facing=south,hooked=true": {
+      "model": "carwinch:block/towbar_1"
+    },
+    "facing=east,hooked=false": {
+      "model": "carwinch:block/towbar",
+      "y": 90
+    },
+    "facing=east,hooked=true": {
+      "model": "carwinch:block/towbar_1",
+      "y": 90
+    },
+    "facing=west,hooked=false": {
+      "model": "carwinch:block/towbar",
+      "y": 270
+    },
+    "facing=west,hooked=true": {
+      "model": "carwinch:block/towbar_1",
+      "y": 270
+    }
+  }
+}{
+  "variants": {
     "facing=up,hooked=false": {
       "model": "carwinch:block/towbar"
     },
