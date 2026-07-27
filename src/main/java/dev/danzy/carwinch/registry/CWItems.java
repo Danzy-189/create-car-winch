@@ -14,9 +14,11 @@ public class CWItems {
             () -> new IronRopeItem(new Item.Properties().stacksTo(16)));
 
     public static final DeferredItem<BlockItem> WINCH =
-        ITEMS.registerSimpleBlockItem("winch", CWBlocks.WINCH);
+            ITEMS.registerSimpleBlockItem("winch", CWBlocks.WINCH);
     public static final DeferredItem<BlockItem> TOWBAR =
-        ITEMS.registerSimpleBlockItem("towbar", CWBlocks.TOWBAR);
+            ITEMS.registerSimpleBlockItem("towbar", CWBlocks.TOWBAR);
+
     private CWItems() {
     }
 }
+
