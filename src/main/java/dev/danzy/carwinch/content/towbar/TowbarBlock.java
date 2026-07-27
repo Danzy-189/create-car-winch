@@ -65,8 +65,8 @@ public class TowbarBlock extends Block
     @Override
     public BlockState getStateForPlacement(final BlockPlaceContext context) {
         return this.defaultBlockState()
-                .setValue(FACING, context.getClickedFace())
-                .setValue(HOOKED, false);
+            .setValue(FACING, context.getHorizontalDirection().getOpposite())
+            .setValue(HOOKED, false);
     }
 
     @Override
