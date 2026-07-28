@@ -3,14 +3,13 @@ package dev.danzy.carwinch.content.towbar;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import dev.ryanhcode.sable.Sable;
-import dev.ryanhcode.sable.api.SubLevelHelper;
 import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import dev.ryanhcode.sable.api.physics.constraint.ConstraintJointAxis;
 import dev.ryanhcode.sable.api.physics.constraint.GenericConstraintConfiguration;
 import dev.ryanhcode.sable.api.physics.constraint.PhysicsConstraintHandle;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
-import dev.ryanhcode.sable.sublevel.SubLevel;
+import dev.ryanhcode.sable.sublevel.ServerSubLevel;
 import dev.ryanhcode.sable.sublevel.system.SubLevelPhysicsSystem;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBehavior;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBlockEntity;
@@ -18,6 +17,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -75,6 +75,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
         );
     }
 
+    /**
+     * Хелпер без аргументов: точка крепления этого самого блока.
+     */
+    public Vec3 getAttachmentPoint() {
+        return this.getAttachmentPoint(this.worldPosition, this.getBlockState());
+    }
+
     public boolean isCoupled() {
         return this.couplingTarget != null;
     }
@@ -107,7 +114,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return false;
         }
 
-        if (!(first.level instanceof net.minecraft.server.level.ServerLevel level)) {
+        if (!(first.level instanceof ServerLevel level)) {
             return false;
         }
 
@@ -126,11 +133,11 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return false;
         }
 
-        final SubLevel firstSubLevel =
-                Sable.HELPER.getContaining(level, firstLocal);
+        final ServerSubLevel firstSubLevel =
+                (ServerSubLevel) Sable.HELPER.getContaining(level, firstLocal);
 
-        final SubLevel secondSubLevel =
-                Sable.HELPER.getContaining(level, secondLocal);
+        final ServerSubLevel secondSubLevel =
+                (ServerSubLevel) Sable.HELPER.getContaining(level, secondLocal);
 
         // Сцепка предназначена только для двух разных SubLevel.
         if (firstSubLevel == null || secondSubLevel == null) {
@@ -172,7 +179,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return false;
         }
 
-        if (!(this.level instanceof net.minecraft.server.level.ServerLevel level)) {
+        if (!(this.level instanceof ServerLevel level)) {
             return false;
         }
 
@@ -196,11 +203,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return false;
         }
 
-        final SubLevel subLevelA =
-                Sable.HELPER.getContaining(level, localA);
+        // PhysicsPipeline#addConstraint принимает PhysicsPipelineBody,
+        // а его реализует именно ServerSubLevel, а не базовый SubLevel.
+        final ServerSubLevel subLevelA =
+                (ServerSubLevel) Sable.HELPER.getContaining(level, localA);
 
-        final SubLevel subLevelB =
-                Sable.HELPER.getContaining(level, localB);
+        final ServerSubLevel subLevelB =
+                (ServerSubLevel) Sable.HELPER.getContaining(level, localB);
 
         if (subLevelA == null || subLevelB == null) {
             return false;
@@ -264,6 +273,10 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         subLevelB,
                         configuration
                 );
+
+        if (this.couplingConstraint == null) {
+            return false;
+        }
 
         this.couplingConstraint.setContactsEnabled(false);
 
@@ -364,38 +377,38 @@ public class TowbarBlockEntity extends SmartBlockEntity
         }
     }
 
+    /*
+     * saveAdditional / loadAdditional в SmartBlockEntity объявлены final.
+     * Единственные легальные хуки - write / read, они же дают
+     * бесплатную синхронизацию с клиентом через clientPacket.
+     */
     @Override
-    protected void saveAdditional(
+    protected void write(
             final CompoundTag tag,
-            final HolderLookup.Provider registries
+            final HolderLookup.Provider registries,
+            final boolean clientPacket
     ) {
-        super.saveAdditional(tag, registries);
+        super.write(tag, registries, clientPacket);
 
         if (this.couplingTarget != null) {
-            tag.putLong(
-                    "CouplingTarget",
-                    this.couplingTarget.asLong()
-            );
+            tag.putLong("CouplingTarget", this.couplingTarget.asLong());
         }
 
         tag.putBoolean("CouplingOwner", this.couplingOwner);
     }
 
     @Override
-    protected void loadAdditional(
+    protected void read(
             final CompoundTag tag,
-            final HolderLookup.Provider registries
+            final HolderLookup.Provider registries,
+            final boolean clientPacket
     ) {
-        super.loadAdditional(tag, registries);
+        super.read(tag, registries, clientPacket);
 
-        if (tag.contains("CouplingTarget")) {
-            this.couplingTarget =
-                    BlockPos.of(tag.getLong("CouplingTarget"));
-        } else {
-            this.couplingTarget = null;
-        }
+        this.couplingTarget = tag.contains("CouplingTarget")
+                ? BlockPos.of(tag.getLong("CouplingTarget"))
+                : null;
 
-        this.couplingOwner =
-                tag.getBoolean("CouplingOwner");
+        this.couplingOwner = tag.getBoolean("CouplingOwner");
     }
 }
