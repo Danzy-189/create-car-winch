@@ -26,7 +26,7 @@ public class CarWinchBlockEntity extends SmartBlockEntity
     /**
      * Максимальная длина троса в блоках.
      */
-    public static final double MAX_RANGE = 18.0;
+    public static final double MAX_RANGE = 18.0D;
 
     /**
      * Скорость смотки при максимальном сигнале редстоуна.
