@@ -5,10 +5,9 @@ import com.simibubi.create.foundation.blockEntity.renderer.SafeBlockEntityRender
 import dev.danzy.carwinch.client.CarWinchRopeRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
-import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.level.block.entity.BlockEntity;
 
-public class CarWinchRenderer
-        extends SafeBlockEntityRenderer {
+public class CarWinchRenderer extends SafeBlockEntityRenderer {
 
     public CarWinchRenderer(
             final BlockEntityRendererProvider.Context context
@@ -16,32 +15,21 @@ public class CarWinchRenderer
     }
 
     @Override
-    public boolean shouldRenderOffScreen(
-            final CarWinchBlockEntity blockEntity
-    ) {
-        return true;
-    }
-
-    @Override
-    public boolean shouldRender(
-            final CarWinchBlockEntity blockEntity,
-            final Vec3 cameraPosition
-    ) {
-        return true;
-    }
-
-    @Override
     protected void renderSafe(
-            final CarWinchBlockEntity blockEntity,
+            final BlockEntity blockEntity,
             final float partialTicks,
             final PoseStack poseStack,
             final MultiBufferSource buffer,
             final int packedLight,
             final int packedOverlay
     ) {
+        if (!(blockEntity instanceof CarWinchBlockEntity winch)) {
+            return;
+        }
+
         CarWinchRopeRenderer.render(
-                blockEntity,
-                blockEntity.getRopeHolder(),
+                winch,
+                winch.getRopeHolder(),
                 partialTicks,
                 poseStack,
                 buffer
