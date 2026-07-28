@@ -68,38 +68,58 @@ public class CarWinchBlockEntity extends SmartBlockEntity
         );
     }
 
-    @Override
-    public void tick() {
-        super.tick();
-
-        if (this.level == null) {
-            return;
-        }
-
-        if (this.level.isClientSide) {
-            this.invalidateRenderBoundingBox();
-
-            this.drumAngle.setValue(
-                    this.drumAngle.getValue() + this.clientDrumSpeed
-            );
-
-            this.clientDrumSpeed =
-                    this.getBlockState().getValue(CarWinchBlock.POWERED)
-                            ? 14.0F
-                            : 0.0F;
-
-            return;
-        }
-
-        this.syncRopedState();
-
-        final ServerRopeStrand strand =
-                this.ropeHolder.getOwnedStrand();
-
-        if (strand != null && this.ropeHolder.ownsRope()) {
-            this.updateRopeStrandExtension(strand);
-        }
+@Override
+public void tick() {
+    super.tick();
+    if (this.level == null) {
+        return;
     }
+
+    if (this.level.isClientSide) {
+        this.invalidateRenderBoundingBox();
+        this.clientDrumSpeed = this.getBlockState().getValue(CarWinchBlock.POWERED) ? 14.0F : 0.0F;
+        this.drumAngle.setValue(this.drumAngle.getValue() + this.clientDrumSpeed);
+        return;
+    }
+
+    this.syncRopedState();
+
+    final int power = this.level.getBestNeighborSignal(this.worldPosition);
+    this.syncPoweredState(power > 0);
+
+    if (power <= 0) {
+        return; // нет сигнала - барабан заблокирован, длина троса не меняется
+    }
+
+    final ServerRopeStrand strand = this.ropeHolder.getOwnedStrand();
+    if (strand != null && this.ropeHolder.ownsRope()) {
+        this.reelIn(strand, power);
+    }
+}
+
+        /** POWERED теперь ведётся живым сигналом каждый тик, а не только по neighborChanged. */
+private void syncPoweredState(final boolean powered) {
+    final BlockState state = this.getBlockState();
+    if (state.hasProperty(CarWinchBlock.POWERED) && state.getValue(CarWinchBlock.POWERED) != powered) {
+        this.level.setBlock(this.worldPosition, state.setValue(CarWinchBlock.POWERED, powered), Block.UPDATE_CLIENTS);
+    }
+}
+                
+    /** Только смотка. Сила сигнала масштабирует скорость. */
+private void reelIn(final ServerRopeStrand strand, final int power) {
+    final int minPointCount = 2;
+    double extension = strand.getExtension() - REEL_SPEED * (power / 15.0F);
+
+    while (extension < 0.0 && strand.getPoints().size() > minPointCount) {
+        strand.removeFirstPoint();
+        extension += ServerRopeStrand.SEGMENT_LENGTH;
+    }
+    if (extension < 1.0 && strand.getPoints().size() <= minPointCount) {
+        extension = 1.0;
+    }
+
+    strand.updateFirstSegmentExtension(extension);
+}
 
     private void syncRopedState() {
         final BlockState state = this.getBlockState();
