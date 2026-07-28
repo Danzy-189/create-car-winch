@@ -8,7 +8,7 @@ import net.minecraft.world.item.Item;
 import net.neoforged.neoforge.registries.DeferredItem;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-public class CWItems {
+public final class CWItems {
 
     public static final DeferredRegister.Items ITEMS =
             DeferredRegister.createItems(CarWinch.ID);
@@ -30,10 +30,16 @@ public class CWItems {
             );
 
     public static final DeferredItem<BlockItem> WINCH =
-            ITEMS.registerSimpleBlockItem("winch", CWBlocks.WINCH);
+            ITEMS.registerSimpleBlockItem(
+                    "winch",
+                    CWBlocks.WINCH
+            );
 
     public static final DeferredItem<BlockItem> TOWBAR =
-            ITEMS.registerSimpleBlockItem("towbar", CWBlocks.TOWBAR);
+            ITEMS.registerSimpleBlockItem(
+                    "towbar",
+                    CWBlocks.TOWBAR
+            );
 
     private CWItems() {
     }
