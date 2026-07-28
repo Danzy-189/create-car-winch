@@ -1,7 +1,6 @@
 package dev.danzy.carwinch.client;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.simibubi.create.AllBlocks;
 import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
 import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.math.OrientedBoundingBox3d;
@@ -75,14 +74,14 @@ public final class CarWinchRopeRenderer {
         final SuperByteBuffer middle =
                 CachedBuffers.partialFacing(
                         CarWinchPartialModels.ROPE,
-                        AllBlocks.ROPE.getDefaultState(),
+                        net.minecraft.world.level.block.Blocks.WHITE_WOOL.defaultBlockState(),
                         Direction.NORTH
                 );
 
         final SuperByteBuffer knot =
                 CachedBuffers.partialFacing(
                         CarWinchPartialModels.ROPE_KNOT,
-                        AllBlocks.ROPE.getDefaultState(),
+                        net.minecraft.world.level.block.Blocks.WHITE_WOOL.defaultBlockState(),
                         Direction.NORTH
                 );
 
