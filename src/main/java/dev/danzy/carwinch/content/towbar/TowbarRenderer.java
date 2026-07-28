@@ -1,7 +1,6 @@
 package dev.danzy.carwinch.content.towbar;
 
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.simibubi.create.AllBlocks;
 import com.simibubi.create.AllPartialModels;
 import com.simibubi.create.foundation.blockEntity.renderer.SafeBlockEntityRenderer;
 import net.createmod.catnip.render.CachedBuffers;
@@ -9,11 +8,12 @@ import net.createmod.catnip.render.SuperByteBuffer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
@@ -103,10 +103,14 @@ public class TowbarRenderer extends SafeBlockEntityRenderer<TowbarBlockEntity> {
         final int shaftLight =
                 LevelRenderer.getLightColor(level, lightPos);
 
+        /*
+         * Slim-сборка Create не тащит Registrate, поэтому AllBlocks.BlockEntry
+         * недоступен. Для источника BlockState берём ванильный блок.
+         */
         final SuperByteBuffer shaft =
                 CachedBuffers.partialFacing(
                         AllPartialModels.SHAFT,
-                        AllBlocks.SHAFT.getDefaultState(),
+                        Blocks.IRON_BLOCK.defaultBlockState(),
                         Direction.UP
                 );
 
