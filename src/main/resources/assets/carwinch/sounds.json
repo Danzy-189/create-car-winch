@@ -1,0 +1,13 @@
+{
+  "winch_sound": {
+    "sounds": [
+      {
+        "name": "carwinch:winch_sound",
+        "stream": true,
+        "volume": 1.0,
+        "pitch": 1.0
+      }
+    ],
+    "subtitle": "subtitles.carwinch.winch_sound"
+  }
+}
