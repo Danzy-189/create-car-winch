@@ -14,12 +14,16 @@ import net.neoforged.fml.common.Mod;
 public class CarWinch {
     public static final String ID = "carwinch";
 
-    public CarWinch(final IEventBus modBus, final ModContainer container) {
-        CWBlocks.BLOCKS.register(modBus);
-        CWItems.ITEMS.register(modBus);
-        CWBlockEntities.BLOCK_ENTITIES.register(modBus);
-        CWDataComponents.DATA_COMPONENTS.register(modBus);
-        CWTabs.TABS.register(modBus);
+    public CarWinch(
+        final IEventBus modBus,
+        final ModContainer container) 
+    {
+    CWBlocks.BLOCKS.register(modBus);
+    CWItems.ITEMS.register(modBus);
+    CWBlockEntities.BLOCK_ENTITIES.register(modBus);
+    CWDataComponents.DATA_COMPONENTS.register(modBus);
+    CWTabs.TABS.register(modBus);
+    CWSounds.SOUNDS.register(modBus);
     }
 
     public static ResourceLocation asResource(final String path) {
