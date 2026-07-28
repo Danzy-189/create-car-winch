@@ -1,5 +1,6 @@
 package dev.danzy.carwinch.content.towbar;
 
+import net.minecraft.client.resources.model.ModelResourceLocation;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.math.Axis;
@@ -22,11 +23,13 @@ import org.joml.Vector3f;
 public class TowbarRenderer
         extends SafeBlockEntityRenderer<TowbarBlockEntity> {
 
-    private static final ResourceLocation COUPLING_MODEL =
-            ResourceLocation.fromNamespaceAndPath(
-                    "carwinch",
-                    "block/coupling"
-            );
+   private static final ModelResourceLocation COUPLING_MODEL =
+        ModelResourceLocation.standalone(
+                ResourceLocation.fromNamespaceAndPath(
+                        "carwinch",
+                        "block/coupling"
+                )
+        );
 
     /**
      * Модель в JSON имеет длину 16 model-units,
