@@ -4,8 +4,9 @@
 	"parent": "block/block",
 	"texture_size": [32, 32],
 	"textures": {
-		"0": "D:/projects/mod/1/coupling",
-		"particle": "D:/projects/mod/1/coupling"
+  		"0": "carwinch:block/coupling",
+  		"particle": "carwinch:block/coupling"
+  }
 	},
 	"elements": [
 		{
