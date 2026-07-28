@@ -1,7 +1,7 @@
 package dev.danzy.carwinch.content.winch;
 
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
-import dev.danzy.carwinch.registry.CWSounds;
+import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import dev.ryanhcode.sable.Sable;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBehavior;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBlockEntity;
@@ -10,7 +10,7 @@ import dev.simulated_team.simulated.content.blocks.rope.strand.server.ServerRope
 import net.createmod.catnip.animation.LerpedFloat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
-import net.minecraft.sounds.SoundSource;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.minecraft.world.level.block.state.BlockState;
@@ -20,78 +20,36 @@ import org.joml.Vector3d;
 
 import java.util.List;
 
-public class CarWinchBlockEntity extends SmartBlockEntity
-        implements RopeStrandHolderBlockEntity {
+public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandHolderBlockEntity {
 
-    /**
-     * Максимальная длина троса в блоках.
-     */
-    public static final double MAX_RANGE = 48.0D;
-
-    /**
-     * Скорость смотки при максимальном сигнале редстоуна.
-     * Старое значение 0.09F уменьшено в 1.2 раза:
-     * 0.09 / 1.2 = 0.075F.
-     */
-    public static final float REEL_SPEED = 0.075F;
-
-    /**
-     * Оставлены для совместимости с предыдущей логикой.
-     * Автоматическая выдача троса без сигнала не используется.
-     */
+    /** Hard cap on rope length, in blocks. */
+    public static final double MAX_RANGE = 48.0;
+    /** Blocks of rope pulled in per tick at full redstone strength. */
+    public static final float REEL_SPEED = 0.09F;
+    /** Blocks of rope actively paid out per tick at full redstone strength. */
+    public static final float RELEASE_SPEED = 0.12F;
+    /** Blocks of rope let out per tick when the rope is taut and the winch is idle (freewheel). */
     public static final float PAYOUT_SPEED = 0.16F;
-    public static final double SLACK_TOLERANCE = 1.03D;
-
-    /**
-     * Запас области рендера вокруг физического троса.
-     */
-    public static final double RENDER_BOUNDING_BOX_INFLATION = 8.0D;
+    /** How much slack we tolerate before freewheeling. */
+    public static final double SLACK_TOLERANCE = 1.03;
+    public static final double RENDER_BOUNDING_BOX_INFLATION = 8.0;
+    /** Cosmetic drum spin, degrees per tick at full strength. */
+    private static final float DRUM_SPIN_PER_TICK = 14.0F;
 
     private RopeStrandHolderBehavior ropeHolder;
 
-    /**
-     * Косметическое вращение барабана на клиенте.
-     */
+    /** Purely cosmetic drum spin, driven client side. */
     public final LerpedFloat drumAngle = LerpedFloat.angular();
-
     private float clientDrumSpeed;
 
-    /**
-     * Предыдущее состояние редстоун-сигнала.
-     * Используется, чтобы звук играл только при включении.
-     */
-    private boolean lastPowered;
-
-    public static boolean isWithinWinchRange(
-            final RopeStrandHolderBehavior first,
-            final RopeStrandHolderBehavior second
-    ) {
-        if (first == null || second == null) {
-            return false;
-        }
-
-        final Vec3 firstPoint = first.getAttachmentPoint();
-        final Vec3 secondPoint = second.getAttachmentPoint();
-
-        return firstPoint.distanceToSqr(secondPoint)
-                <= MAX_RANGE * MAX_RANGE;
-    }
-
-    public CarWinchBlockEntity(
-            final BlockEntityType type,
-            final BlockPos pos,
-            final BlockState state
-    ) {
+    public CarWinchBlockEntity(final BlockEntityType<?> type, final BlockPos pos, final BlockState state) {
         super(type, pos, state);
         this.setLazyTickRate(20);
     }
 
     @Override
-    public void addBehaviours(final List behaviours) {
-        behaviours.add(
-                this.ropeHolder =
-                        new RopeStrandHolderBehavior(this)
-        );
+    public void addBehaviours(final List<BlockEntityBehaviour> behaviours) {
+        behaviours.add(this.ropeHolder = new RopeStrandHolderBehavior(this));
     }
 
     public RopeStrandHolderBehavior getRopeHolder() {
@@ -103,240 +61,151 @@ public class CarWinchBlockEntity extends SmartBlockEntity
         return this.ropeHolder;
     }
 
-    /**
-     * Точка выхода троса из барабана.
-     */
+    /** Where the rope physically leaves the drum. */
     @Override
-    public Vec3 getAttachmentPoint(
-            final BlockPos pos,
-            final BlockState state
-    ) {
-        final Direction facing =
-                state.getValue(CarWinchBlock.FACING);
+    public Vec3 getAttachmentPoint(final BlockPos pos, final BlockState state) {
+        final Direction facing = state.getValue(CarWinchBlock.FACING);
+        return pos.getCenter().add(Vec3.atLowerCornerOf(facing.getNormal()).scale(0.44));
+    }
 
-        return pos.getCenter().add(
-                Vec3.atLowerCornerOf(
-                        facing.getNormal()
-                ).scale(0.44D)
-        );
+    /**
+     * Сигнал, приходящий в блок с указанной стороны.
+     */
+    private static int signalFrom(final Level level, final BlockPos pos, final Direction side) {
+        return level.getSignal(pos.relative(side), side);
+    }
+
+    /**
+     * Куда и насколько сильно работает лебёдка.
+     *
+     * Сигнал сверху (или с боков) - тянет трос внутрь.
+     * Сигнал снизу - травит трос наружу.
+     * Оба одновременно и одинаковой силы - тормоз, трос стоит на месте.
+     *
+     * Результат: положительное значение - натяг, отрицательное - выдача,
+     * 0 - лебёдка ничего не делает (обрабатывается отдельно).
+     * Диапазон -15..15.
+     */
+    public static int getCommandedPower(final Level level, final BlockPos pos) {
+        int pull = signalFrom(level, pos, Direction.UP);
+        for (final Direction side : Direction.Plane.HORIZONTAL) {
+            pull = Math.max(pull, signalFrom(level, pos, side));
+        }
+        final int release = signalFrom(level, pos, Direction.DOWN);
+        return pull - release;
+    }
+
+    /** true, если сигналы с двух сторон гасят друг друга - трос заблокирован. */
+    private static boolean isBraked(final Level level, final BlockPos pos) {
+        return getCommandedPower(level, pos) == 0
+                && (signalFrom(level, pos, Direction.DOWN) > 0
+                    || signalFrom(level, pos, Direction.UP) > 0);
     }
 
     @Override
     public void tick() {
         super.tick();
-
         if (this.level == null) {
             return;
         }
 
-        /*
-         * Клиентская часть:
-         * вращаем барабан только при наличии POWERED.
-         */
         if (this.level.isClientSide) {
             this.invalidateRenderBoundingBox();
-
-            this.clientDrumSpeed =
-                    this.getBlockState()
-                            .getValue(CarWinchBlock.POWERED)
-                            ? 14.0F
-                            : 0.0F;
-
-            this.drumAngle.setValue(
-                    this.drumAngle.getValue()
-                            + this.clientDrumSpeed
-            );
-
+            // сначала применяем скорость, посчитанную в прошлом тике, потом обновляем её
+            this.drumAngle.setValue(this.drumAngle.getValue() + this.clientDrumSpeed);
+            final int commanded = getCommandedPower(this.level, this.worldPosition);
+            this.clientDrumSpeed = DRUM_SPIN_PER_TICK * (commanded / 15.0F);
             return;
         }
 
-        /*
-         * Серверная часть:
-         * обновляем состояние модели лебёдки.
-         */
         this.syncRopedState();
 
-        /*
-         * Получаем силу редстоун-сигнала от 0 до 15.
-         */
-        final int power =
-                this.level.getBestNeighborSignal(
-                        this.worldPosition
-                );
-
-        final boolean powered = power > 0;
-
-        /*
-         * Звук запускается только при переходе:
-         *
-         * false -> true
-         *
-         * Поэтому он не будет проигрываться каждый тик.
-         */
-        if (powered && !this.lastPowered
-        && CWSounds.WINCH_SOUND.isBound()) {
-    this.level.playSound(
-            null,
-            this.worldPosition,
-            CWSounds.WINCH_SOUND.value(),
-            SoundSource.BLOCKS,
-            1.0F,
-            1.0F
-    );
-}
-
-        this.lastPowered = powered;
-
-        /*
-         * Получаем физический трос, которым владеет лебёдка.
-         */
-        final ServerRopeStrand strand =
-                this.ropeHolder.getOwnedStrand();
-
-        if (strand != null
-                && this.ropeHolder.ownsRope()) {
-            this.updateRopeStrandExtension(
-                    strand,
-                    power
-            );
+        final ServerRopeStrand strand = this.ropeHolder.getOwnedStrand();
+        if (strand != null && this.ropeHolder.ownsRope()) {
+            this.updateRopeStrandExtension(strand);
         }
     }
 
-    /**
-     * Обновляет состояние модели:
-     *
-     * false: winch.json
-     * true: winch_1.json
-     */
+    /** Swaps winch.bbmodel <-> winch_1.bbmodel depending on whether a rope is spooled. */
     private void syncRopedState() {
-        final BlockState state =
-                this.getBlockState();
-
+        final BlockState state = this.getBlockState();
         if (!state.hasProperty(CarWinchBlock.ROPED)) {
             return;
         }
-
-        final boolean roped =
-                this.ropeHolder.isAttached();
-
-        if (state.getValue(CarWinchBlock.ROPED)
-                != roped) {
-            this.level.setBlock(
-                    this.worldPosition,
-                    state.setValue(
-                            CarWinchBlock.ROPED,
-                            roped
-                    ),
-                    Block.UPDATE_ALL
-            );
+        final boolean roped = this.ropeHolder.isAttached();
+        if (state.getValue(CarWinchBlock.ROPED) != roped) {
+            this.level.setBlock(this.worldPosition, state.setValue(CarWinchBlock.ROPED, roped), Block.UPDATE_ALL);
         }
     }
 
     /**
-     * Сматывает трос только при наличии редстоун-сигнала.
-     *
-     * Сигнал 0:
-     * лебёдка полностью остановлена.
-     *
-     * Сигнал 1:
-     * минимальная скорость.
-     *
-     * Сигнал 15:
-     * REEL_SPEED = 0.075 блока за тик.
+     * Сверху - наматывает, снизу - размотывает.
+     * Без сигнала лебёдка на свободном ходу и травит трос, когда он натянулся,
+     * чтобы буксируемое всё ещё могло уехать.
      */
-    private void updateRopeStrandExtension(
-            final ServerRopeStrand strand,
-            final int power
-    ) {
-        /*
-         * Без редстоуна ничего не меняем.
-         * Freewheel и автоматическая выдача троса отключены.
-         */
-        if (power <= 0) {
+    private void updateRopeStrandExtension(final ServerRopeStrand strand) {
+        final double desiredExtension = strand.getExtension()
+                + (strand.getPoints().size() - 2) * ServerRopeStrand.SEGMENT_LENGTH;
+        final double currentExtension = strand.getCurrentExtension();
+
+        final int commanded = getCommandedPower(this.level, this.worldPosition);
+
+        float movementSpeed;
+        if (commanded > 0) {
+            movementSpeed = -REEL_SPEED * (commanded / 15.0F);
+        } else if (commanded < 0) {
+            movementSpeed = RELEASE_SPEED * (-commanded / 15.0F);
+        } else if (isBraked(this.level, this.worldPosition)) {
+            return;
+        } else if (currentExtension > desiredExtension * SLACK_TOLERANCE) {
+            movementSpeed = PAYOUT_SPEED;
+        } else {
             return;
         }
 
-        /*
-         * Скорость зависит от силы сигнала.
-         * Знак минус означает сматывание.
-         */
-        final float movementSpeed =
-                -REEL_SPEED * (power / 15.0F);
-
-        /*
-         * Не даём тросу стать длиннее MAX_RANGE.
-         *
-         * Сейчас движение только внутрь, поэтому это условие
-         * срабатывает только как защитная проверка.
-         */
-        final double currentExtension =
-                strand.getCurrentExtension();
-
-        if (currentExtension >= MAX_RANGE
-                && movementSpeed > 0.0F) {
-            return;
+        if (currentExtension > MAX_RANGE) {
+            movementSpeed = Math.min(0.0F, movementSpeed);
         }
 
-        double extension =
-                strand.getExtension()
-                        + movementSpeed;
-
+        double extension = strand.getExtension() + movementSpeed;
         final int minPointCount = 2;
 
-        /*
-         * Не позволяем удалить последний обязательный сегмент.
-         */
-        if (extension < 1.0D
-                && strand.getPoints().size()
-                == minPointCount) {
-            extension = 1.0D;
+        if (extension < 1.0 && strand.getPoints().size() == minPointCount) {
+            extension = 1.0;
         } else {
-            /*
-             * При сматывании удаляем начальные точки,
-             * когда первый сегмент стал отрицательным.
-             */
-            while (extension < 0.0D
-                    && strand.getPoints().size()
-                    > minPointCount) {
+            while (extension < 0.0) {
                 strand.removeFirstPoint();
+                extension += ServerRopeStrand.SEGMENT_LENGTH;
 
-                extension +=
-                        ServerRopeStrand.SEGMENT_LENGTH;
+                if (extension < 1.0 && strand.getPoints().size() == minPointCount) {
+                    extension = 1.0;
+                    break;
+                }
             }
 
-            /*
-             * Минимальная длина первого сегмента.
-             */
-            if (extension < 1.0D
-                    && strand.getPoints().size()
-                    <= minPointCount) {
-                extension = 1.0D;
+            while (extension > ServerRopeStrand.SEGMENT_LENGTH) {
+                final Vec3 anchor = Sable.HELPER.projectOutOfSubLevel(this.level, this.ropeHolder.getAttachmentPoint());
+                strand.addPoint(new Vector3d(anchor.x, anchor.y, anchor.z));
+                extension -= ServerRopeStrand.SEGMENT_LENGTH;
+            }
+
+            if (extension < 1.0 && strand.getPoints().size() <= minPointCount) {
+                extension = 1.0;
             }
         }
 
-        strand.updateFirstSegmentExtension(
-                extension
-        );
+        strand.updateFirstSegmentExtension(extension);
     }
 
     @Override
     public AABB getRenderBoundingBox() {
-        final ClientRopeStrand rope =
-                this.ropeHolder.getClientStrand();
-
-        if (rope != null
-                && this.ropeHolder.ownsRope()) {
-            final AABB bounds =
-                    rope.getBounds();
-
+        final ClientRopeStrand rope = this.ropeHolder.getClientStrand();
+        if (rope != null && this.ropeHolder.ownsRope()) {
+            final AABB bounds = rope.getBounds();
             if (bounds != null) {
-                return bounds.inflate(
-                        RENDER_BOUNDING_BOX_INFLATION
-                );
+                return bounds.inflate(RENDER_BOUNDING_BOX_INFLATION);
             }
         }
-
         return super.getRenderBoundingBox();
     }
 }
-
