@@ -1,4 +1,10 @@
 {
+  "item.carwinch.coupling": "Rigid Coupling",
+  "carwinch.coupling.tooltip": "Right-click two tow bars on different SubLevels. Shift + right-click with a wrench to remove it.",
+  "carwinch.coupling.selected": "Tow bar selected - choose the second tow bar",
+  "carwinch.coupling.cleared": "Coupling selection cleared",
+  "carwinch.coupling.occupied": "This tow bar is already coupled",
+  "carwinch.coupling.failed": "Could not create coupling: different SubLevels and distance up to 4 blocks are required"
   "itemGroup.carwinch": "Create: Car Winch",
   "block.carwinch.winch": "Car Winch",
   "block.carwinch.towbar": "Tow Bar",
