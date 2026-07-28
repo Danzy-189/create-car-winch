@@ -68,19 +68,19 @@ public class TowbarRenderer
             return;
         }
 
-        /*
-         * getAttachmentPoint() возвращает локальные координаты
-         * каждого собственного sublevel.
-         */
+        final double fixedLength =
+                blockEntity.getCouplingLength();
+
+        if (fixedLength <= 0.0D) {
+            return;
+        }
+
         final Vec3 localStart =
                 blockEntity.getAttachmentPoint();
 
         final Vec3 localEnd =
                 target.getAttachmentPoint();
 
-        /*
-         * Переводим обе точки в одну мировую систему.
-         */
         final Vec3 start =
                 Sable.HELPER.projectOutOfSubLevel(
                         level,
@@ -100,12 +100,9 @@ public class TowbarRenderer
         }
 
         /*
-         * Вал физикой имеет фиксированную длину.
-         * Не используем реальную текущую длину для scale.
+         * Направление берём от фактического положения фаркопов,
+         * а длину только из сохранённого couplingLength.
          */
-        final double length =
-                TowbarBlockEntity.COUPLING_LENGTH;
-
         final Vector3f direction =
                 new Vector3f(
                         (float) delta.x,
@@ -117,6 +114,13 @@ public class TowbarRenderer
                 new Quaternionf().rotationTo(
                         new Vector3f(0.0F, 1.0F, 0.0F),
                         direction
+                );
+
+        final SuperByteBuffer shaft =
+                CachedBuffers.partialFacing(
+                        AllPartialModels.SHAFT,
+                        Blocks.IRON_BLOCK.defaultBlockState(),
+                        Direction.UP
                 );
 
         final BlockPos lightPos =
@@ -132,18 +136,6 @@ public class TowbarRenderer
                         lightPos
                 );
 
-        /*
-         * Create shaft partial.
-         * Blocks.IRON_BLOCK нужен только как безопасный BlockState
-         * для slim-сборки Create без Registrate BlockEntry.
-         */
-        final SuperByteBuffer shaft =
-                CachedBuffers.partialFacing(
-                        AllPartialModels.SHAFT,
-                        Blocks.IRON_BLOCK.defaultBlockState(),
-                        Direction.UP
-                );
-
         poseStack.pushPose();
 
         poseStack.translate(
@@ -153,15 +145,15 @@ public class TowbarRenderer
         );
 
         poseStack.mulPose(rotation);
+        poseStack.translate(-0.5D, 0.0D, -0.5D);
 
         /*
-         * Поперечный размер постоянный.
-         * Длина постоянная и равна COUPLING_LENGTH.
+         * Поперечник постоянный, длина зафиксирована
+         * в момент соединения.
          */
-        poseStack.translate(-0.5D, 0.0D, -0.5D);
         poseStack.scale(
                 0.22F,
-                (float) length,
+                (float) fixedLength,
                 0.22F
         );
 
