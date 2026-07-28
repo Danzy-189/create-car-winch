@@ -158,16 +158,17 @@ public class CarWinchBlockEntity extends SmartBlockEntity
          *
          * Поэтому он не будет проигрываться каждый тик.
          */
-        if (powered && !this.lastPowered) {
-            this.level.playSound(
-                    null,
-                    this.worldPosition,
-                    CWSounds.WINCH_SOUND.get(),
-                    SoundSource.BLOCKS,
-                    1.0F,
-                    1.0F
-            );
-        }
+        if (powered && !this.lastPowered
+        && CWSounds.WINCH_SOUND.isBound()) {
+    this.level.playSound(
+            null,
+            this.worldPosition,
+            CWSounds.WINCH_SOUND.value(),
+            SoundSource.BLOCKS,
+            1.0F,
+            1.0F
+    );
+}
 
         this.lastPowered = powered;
 
