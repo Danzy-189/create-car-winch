@@ -111,43 +111,69 @@ public class IronRopeItem extends Item {
     /**
      * Creates the strand. The winch always owns the rope so it is the side that reels it in.
      */
-    private boolean hitch(final Level level, final BlockPos posA, final BlockPos posB, final boolean dropItem) {
-        RopeStrandHolderBehavior a = getRopeHolder(level, posA);
-        RopeStrandHolderBehavior b = getRopeHolder(level, posB);
+    private boolean hitch(
+        final Level level,
+        final BlockPos posA,
+        final BlockPos posB,
+        final boolean dropItem
+) {
+    final RopeStrandHolderBehavior first =
+            getRopeHolder(level, posA);
 
-        if (a == null || b == null) {
-            return false;
-        }
+    final RopeStrandHolderBehavior second =
+            getRopeHolder(level, posB);
 
-        // make sure the winch is the owner
-        if (isWinch(b) && !isWinch(a)) {
-            final RopeStrandHolderBehavior temp = a;
-            a = b;
-            b = temp;
-        }
-
-        if (!isWinch(a) || !isTowbar(b)) {
-            return false;
-        }
-
-        final Vec3 attachmentA =
-        a.getAttachmentPoint();
-
-        final Vec3 attachmentB =
-        b.getAttachmentPoint();
-
-        if (attachmentA.distanceTo(attachmentB)
-        > CarWinchBlockEntity.MAX_RANGE) {
-        return false;
-        }
-        
-        if (a.createRope(b)) {
-            level.playSound(null, posA, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
-            level.playSound(null, posB, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
-            return true;
-        }
+    if (first == null || second == null) {
         return false;
     }
+
+    RopeStrandHolderBehavior winch = first;
+    RopeStrandHolderBehavior towbar = second;
+
+    if (isTowbar(winch) && isWinch(towbar)) {
+        winch = second;
+        towbar = first;
+    }
+
+    if (!isWinch(winch) || !isTowbar(towbar)) {
+        return false;
+    }
+
+    if (winch.isAttached() || towbar.isAttached()) {
+        return false;
+    }
+
+    /*
+     * Simulated сам:
+     * 1. получает sub-level обоих концов;
+     * 2. переводит точки в мировые координаты;
+     * 3. проверяет maxRopeRange;
+     * 4. создаёт attachment с UUID sub-level.
+     */
+    if (!winch.createRope(towbar, dropItem)) {
+        return false;
+    }
+
+    level.playSound(
+            null,
+            posA,
+            SoundEvents.CHAIN_PLACE,
+            SoundSource.BLOCKS,
+            0.7F,
+            0.8F
+    );
+
+    level.playSound(
+            null,
+            posB,
+            SoundEvents.CHAIN_PLACE,
+            SoundSource.BLOCKS,
+            0.7F,
+            0.8F
+    );
+
+    return true;
+}
 
     @Override
     public void appendHoverText(final ItemStack stack, final TooltipContext context,
