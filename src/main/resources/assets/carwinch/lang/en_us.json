@@ -1,19 +1,18 @@
 {
-  "item.carwinch.coupling": "Rigid Coupling",
-  "carwinch.coupling.tooltip": "Right-click two tow bars on different SubLevels. Shift + right-click with a wrench to remove it.",
-  "carwinch.coupling.selected": "Tow bar selected - choose the second tow bar",
-  "carwinch.coupling.cleared": "Coupling selection cleared",
-  "carwinch.coupling.occupied": "This tow bar is already coupled",
-  "carwinch.coupling.failed": "Could not create coupling: different SubLevels and distance up to 4 blocks are required"
   "itemGroup.carwinch": "Create: Car Winch",
   "block.carwinch.winch": "Car Winch",
   "block.carwinch.towbar": "Tow Bar",
   "item.carwinch.iron_rope": "Steel Rope",
-  "carwinch.rope.tooltip": "Right click a winch, then a tow bar. Sneak + right click to cancel.",
-  "carwinch.rope.tooltip.anchored": "Anchored at %s, %s, %s",
-  "carwinch.rope.selected": "Anchor selected - now click a tow bar",
+  "item.carwinch.coupling": "Coupling",
+  "carwinch.rope.tooltip": "Right-click the winch, then the tow bar. Shift + right-click cancels.",
+  "carwinch.rope.tooltip.anchored": "Anchor: %s, %s, %s",
+  "carwinch.rope.selected": "Anchor selected, now click the tow bar",
   "carwinch.rope.cleared": "Selection cleared",
-  "carwinch.rope.occupied": "That anchor already has a rope",
-  "carwinch.rope.failed": "Could not hitch the rope - too far, or not a winch + tow bar pair",
-  "subtitles.carwinch.winch_sound": "Winch activated"
+  "carwinch.rope.occupied": "This point already has a rope",
+  "carwinch.rope.failed": "Could not attach rope: too far away or invalid winch/tow bar pair",
+  "carwinch.coupling.tooltip": "Right-click two tow bars to connect them",
+  "carwinch.coupling.selected": "Tow bar selected, now select the second one",
+  "carwinch.coupling.cleared": "Coupling selection cleared",
+  "carwinch.coupling.occupied": "This tow bar is already coupled",
+  "carwinch.coupling.failed": "Could not couple the tow bars"
 }
