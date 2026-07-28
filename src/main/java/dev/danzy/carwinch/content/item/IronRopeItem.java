@@ -1,5 +1,5 @@
 package dev.danzy.carwinch.content.item;
-
+import net.minecraft.world.phys.Vec3;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import dev.danzy.carwinch.content.towbar.TowbarBlockEntity;
 import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
@@ -130,6 +130,17 @@ public class IronRopeItem extends Item {
             return false;
         }
 
+        final Vec3 attachmentA =
+        a.getAttachmentPoint();
+
+        final Vec3 attachmentB =
+        b.getAttachmentPoint();
+
+        if (attachmentA.distanceTo(attachmentB)
+        > CarWinchBlockEntity.MAX_RANGE) {
+        return false;
+        }
+        
         if (a.createRope(b)) {
             level.playSound(null, posA, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
             level.playSound(null, posB, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
