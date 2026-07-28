@@ -1,5 +1,5 @@
 package dev.danzy.carwinch.registry;
-
+import net.minecraft.util.UUIDUtil;
 import dev.danzy.carwinch.CarWinch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponentType;
@@ -41,8 +41,8 @@ public final class CWDataComponents {
             DATA_COMPONENTS.registerComponentType(
                     "first_connection_sublevel",
                     builder -> builder
-                            .persistent(UUID.CODEC)
-                            .networkSynchronized(ByteBufCodecs.UUID)
+                            .persistent(UUIDUtil.CODEC)
+                            .networkSynchronized(UUIDUtil.STREAM_CODEC)
             );
 
     private CWDataComponents() {
