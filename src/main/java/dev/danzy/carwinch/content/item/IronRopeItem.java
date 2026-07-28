@@ -122,7 +122,7 @@ public class IronRopeItem extends Item {
         final SubLevel subLevel =
                 container.getSubLevel(subLevelId);
 
-        return SubLevelContainer.getContainer(subLevel);
+        return SubLevelContainer.getContainer(subLevel.level());
     }
 
     /**
