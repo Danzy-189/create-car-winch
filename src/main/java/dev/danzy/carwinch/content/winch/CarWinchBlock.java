@@ -140,10 +140,10 @@ public class CarWinchBlock extends Block
 
     @Override
     public VoxelShape getSubLevelCollisionShape(
-            final BlockGetter blockGetter,
-            final BlockState state
+        final BlockGetter blockGetter,
+        final BlockState state
     ) {
-        return SHAPE;
+        return Shapes.empty();
     }
 
     @Override
