@@ -1,4 +1,10 @@
 {
+  "item.carwinch.coupling": "Жёсткая сцепка",
+  "carwinch.coupling.tooltip": "ПКМ по двум фаркопам на разных SubLevel. Shift + ПКМ гаечным ключом снимает сцепку.",
+  "carwinch.coupling.selected": "Фаркоп выбран - выбери второй фаркоп",
+  "carwinch.coupling.cleared": "Выбор сцепки сброшен",
+  "carwinch.coupling.occupied": "Этот фаркоп уже соединён",
+  "carwinch.coupling.failed": "Не удалось установить сцепку: нужны разные SubLevel и расстояние до 4 блоков"
   "itemGroup.carwinch": "Create: Автомобильная лебёдка",
   "block.carwinch.winch": "Лебёдка",
   "block.carwinch.towbar": "Фаркоп",
