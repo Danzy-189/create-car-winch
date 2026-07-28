@@ -8,7 +8,7 @@ import net.minecraft.world.item.ItemStack;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-public class CWTabs {
+public final class CWTabs {
 
     public static final DeferredRegister<CreativeModeTab> TABS =
             DeferredRegister.create(
