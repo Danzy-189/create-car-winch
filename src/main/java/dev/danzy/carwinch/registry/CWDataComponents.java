@@ -1,5 +1,5 @@
 package dev.danzy.carwinch.registry;
-import net.minecraft.util.UUIDUtil;
+import net.minecraft.core.UUIDUtil;
 import dev.danzy.carwinch.CarWinch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponentType;
