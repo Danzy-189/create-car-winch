@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "carwinch:block/coupling"
+    "layer0": "carwinch:item/coupling"
   }
 }
