@@ -1,5 +1,5 @@
 package dev.danzy.carwinch.content.item;
-import net.minecraft.util.UUIDUtil;
+
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import dev.danzy.carwinch.content.towbar.TowbarBlockEntity;
 import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
