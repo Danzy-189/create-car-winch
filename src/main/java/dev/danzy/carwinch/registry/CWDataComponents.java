@@ -1,26 +1,18 @@
 package dev.danzy.carwinch.registry;
-import net.minecraft.core.UUIDUtil;
+
 import dev.danzy.carwinch.CarWinch;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponentType;
-import net.minecraft.network.codec.ByteBufCodecs;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
 
-import java.util.UUID;
-
-public final class CWDataComponents {
+public class CWDataComponents {
 
     public static final DeferredRegister.DataComponents DATA_COMPONENTS =
             DeferredRegister.createDataComponents(CarWinch.ID);
 
-    /**
-     * Позиция первого выбранного конца.
-     */
-    public static final DeferredHolder<
-            DataComponentType<?>,
-            DataComponentType<BlockPos>
-            > FIRST_CONNECTION =
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockPos>>
+            FIRST_CONNECTION =
             DATA_COMPONENTS.registerComponentType(
                     "first_connection",
                     builder -> builder
@@ -28,21 +20,13 @@ public final class CWDataComponents {
                             .networkSynchronized(BlockPos.STREAM_CODEC)
             );
 
-    /**
-     * UUID sub-level первого выбранного конца.
-     *
-     * Если компонента отсутствует, первый конец находится
-     * в обычном мире.
-     */
-    public static final DeferredHolder<
-            DataComponentType<?>,
-            DataComponentType<UUID>
-            > FIRST_CONNECTION_SUBLEVEL =
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockPos>>
+            COUPLING_FIRST_CONNECTION =
             DATA_COMPONENTS.registerComponentType(
-                    "first_connection_sublevel",
+                    "coupling_first_connection",
                     builder -> builder
-                            .persistent(UUIDUtil.CODEC)
-                            .networkSynchronized(UUIDUtil.STREAM_CODEC)
+                            .persistent(BlockPos.CODEC)
+                            .networkSynchronized(BlockPos.STREAM_CODEC)
             );
 
     private CWDataComponents() {
