@@ -31,6 +31,7 @@ import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.block.HorizontalDirectionalBlock;
 
 /**
  * The car winch. Holds a steel rope strand (owner side) and reels it in on redstone power.
@@ -53,6 +54,9 @@ public class CarWinchBlock extends Block
                 .setValue(FACING, Direction.NORTH)
                 .setValue(ROPED, false)
                 .setValue(POWERED, false));
+
+    public static final DirectionProperty FACING = HorizontalDirectionalBlock.FACING;
+            
     }
 
     @Override
@@ -126,9 +130,13 @@ public class CarWinchBlock extends Block
     public Class<CarWinchBlockEntity> getBlockEntityClass() {
         return CarWinchBlockEntity.class;
     }
-
+    
+    }
     @Override
-    public BlockEntityType<? extends CarWinchBlockEntity> getBlockEntityType() {
-        return CWBlockEntities.WINCH.get();
+    public BlockState getStateForPlacement(final BlockPlaceContext context) {
+        return this.defaultBlockState()
+            .setValue(FACING, context.getHorizontalDirection().getOpposite())
+            .setValue(ROPED, false)
+            .setValue(POWERED, context.getLevel().hasNeighborSignal(context.getClickedPos()));
     }
 }
