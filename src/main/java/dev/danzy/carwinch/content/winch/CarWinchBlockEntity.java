@@ -20,6 +20,22 @@ import org.joml.Vector3d;
 
 import java.util.List;
 
+
+public static boolean isWithinWinchRange(
+        final RopeStrandHolderBehavior first,
+        final RopeStrandHolderBehavior second
+) {
+    if (first == null || second == null) {
+        return false;
+    }
+
+    final Vec3 firstPoint = first.getAttachmentPoint();
+    final Vec3 secondPoint = second.getAttachmentPoint();
+
+    return firstPoint.distanceToSqr(secondPoint)
+            <= MAX_RANGE * MAX_RANGE;
+}
+
 public class CarWinchBlockEntity extends SmartBlockEntity
         implements RopeStrandHolderBlockEntity {
 
