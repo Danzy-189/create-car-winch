@@ -1,5 +1,6 @@
 package dev.danzy.carwinch.content.winch;
-
+import dev.danzy.carwinch.registry.CWSounds;
+import net.minecraft.sounds.SoundSource;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import com.simibubi.create.foundation.blockEntity.behaviour.BlockEntityBehaviour;
 import dev.ryanhcode.sable.Sable;
@@ -22,8 +23,8 @@ import java.util.List;
 public class CarWinchBlockEntity extends SmartBlockEntity
         implements RopeStrandHolderBlockEntity {
 
-    public static final double MAX_RANGE = 48.0;
-    public static final float REEL_SPEED = 0.09F;
+    public static final double MAX_RANGE = 10.0D;
+    public static final float REEL_SPEED = 0.075F;
     public static final float PAYOUT_SPEED = 0.16F;
     public static final double SLACK_TOLERANCE = 1.03;
     public static final double RENDER_BOUNDING_BOX_INFLATION = 8.0;
