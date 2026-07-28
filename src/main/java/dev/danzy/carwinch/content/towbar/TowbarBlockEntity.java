@@ -32,21 +32,19 @@ import java.util.List;
 public class TowbarBlockEntity extends SmartBlockEntity
         implements RopeStrandHolderBlockEntity {
 
-    /**
-     * Фиксированная длина жёсткой сцепки.
-     * Вал не растягивается и не сжимается.
-     */
-    public static final double COUPLING_LENGTH = 2.0D;
-
-    /**
-     * Максимальная дистанция между фаркопами при первом соединении.
-     */
     public static final double MAX_COUPLING_DISTANCE = 4.0D;
+    private static final double MIN_COUPLING_DISTANCE = 0.05D;
 
     private RopeStrandHolderBehavior ropeHolder;
 
     private BlockPos couplingTarget;
     private boolean couplingOwner;
+
+    /**
+     * Длина фиксируется в момент соединения.
+     * После этого вал не меняет размер.
+     */
+    private double couplingLength;
 
     private PhysicsConstraintHandle couplingConstraint;
 
@@ -89,9 +87,6 @@ public class TowbarBlockEntity extends SmartBlockEntity
         );
     }
 
-    /**
-     * Возвращает локальную точку крепления этого фаркопа.
-     */
     public Vec3 getAttachmentPoint() {
         return getAttachmentPoint(
                 this.worldPosition,
@@ -100,20 +95,24 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     public boolean isCoupled() {
-        return this.couplingTarget != null;
+        return couplingTarget != null;
     }
 
     public boolean isCouplingOwner() {
-        return this.couplingOwner;
+        return couplingOwner;
     }
 
     public BlockPos getCouplingTarget() {
-        return this.couplingTarget;
+        return couplingTarget;
     }
 
     /**
-     * Создаёт жёсткую шарнирную сцепку между двумя разными sublevel.
+     * Возвращает длину сцепки для рендера.
      */
+    public double getCouplingLength() {
+        return couplingLength;
+    }
+
     public static boolean createCoupling(
             final TowbarBlockEntity first,
             final TowbarBlockEntity second
@@ -140,10 +139,11 @@ public class TowbarBlockEntity extends SmartBlockEntity
         final Vec3 secondGlobal =
                 Sable.HELPER.projectOutOfSubLevel(level, secondLocal);
 
-        final double initialDistance =
-                firstGlobal.distanceTo(secondGlobal);
+        final Vec3 globalDelta = secondGlobal.subtract(firstGlobal);
+        final double distance = globalDelta.length();
 
-        if (initialDistance > MAX_COUPLING_DISTANCE) {
+        if (distance < MIN_COUPLING_DISTANCE
+                || distance > MAX_COUPLING_DISTANCE) {
             return false;
         }
 
@@ -161,9 +161,11 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         first.couplingTarget = second.worldPosition;
         first.couplingOwner = true;
+        first.couplingLength = distance;
 
         second.couplingTarget = first.worldPosition;
         second.couplingOwner = false;
+        second.couplingLength = distance;
 
         first.setChanged();
         second.setChanged();
@@ -171,15 +173,17 @@ public class TowbarBlockEntity extends SmartBlockEntity
         first.blockEntityNotify();
         second.blockEntityNotify();
 
+        /*
+         * Constraint строится в исходной геометрии.
+         * Никакой принудительной длины 2 блока здесь нет,
+         * поэтому sublevel не телепортируются при клике.
+         */
         if (first.createPhysicsConstraint()) {
             return true;
         }
 
-        first.couplingTarget = null;
-        first.couplingOwner = false;
-
-        second.couplingTarget = null;
-        second.couplingOwner = false;
+        first.clearCouplingData();
+        second.clearCouplingData();
 
         first.setChanged();
         second.setChanged();
@@ -202,63 +206,60 @@ public class TowbarBlockEntity extends SmartBlockEntity
                 : null;
     }
 
+    private void clearCouplingData() {
+        removePhysicsConstraint();
+        couplingTarget = null;
+        couplingOwner = false;
+        couplingLength = 0.0D;
+    }
+
     private void blockEntityNotify() {
-        if (this.level == null) {
+        if (level == null) {
             return;
         }
 
-        this.level.sendBlockUpdated(
-                this.worldPosition,
-                this.getBlockState(),
-                this.getBlockState(),
+        level.sendBlockUpdated(
+                worldPosition,
+                getBlockState(),
+                getBlockState(),
                 Block.UPDATE_CLIENTS
         );
     }
 
-    /**
-     * Создаёт constraint с фиксированной длиной COUPLING_LENGTH.
-     *
-     * Важный момент:
-     * anchorA находится в первом фаркопе,
-     * а anchorB смещён назад на длину сцепки относительно второго фаркопа.
-     *
-     * Поэтому solver совмещает anchorA и anchorB, а сами фаркопы
-     * остаются на расстоянии COUPLING_LENGTH друг от друга.
-     */
     private boolean createPhysicsConstraint() {
-        if (!this.couplingOwner
-                || this.couplingTarget == null
-                || !(this.level instanceof ServerLevel level)) {
+        if (!couplingOwner
+                || couplingTarget == null
+                || !(level instanceof ServerLevel serverLevel)) {
             return false;
         }
 
         final TowbarBlockEntity target =
-                getTowbar(level, this.couplingTarget);
+                getTowbar(serverLevel, couplingTarget);
 
         if (target == null) {
             return false;
         }
 
-        final Vec3 attachmentA = this.getAttachmentPoint();
-        final Vec3 attachmentB = target.getAttachmentPoint();
-
-        final Vec3 globalA =
-                Sable.HELPER.projectOutOfSubLevel(level, attachmentA);
-
-        final Vec3 globalB =
-                Sable.HELPER.projectOutOfSubLevel(level, attachmentB);
+        final Vec3 localA = getAttachmentPoint();
+        final Vec3 localB = target.getAttachmentPoint();
 
         final ServerSubLevel subLevelA =
-                getContainingSubLevel(level, attachmentA);
+                getContainingSubLevel(serverLevel, localA);
 
         final ServerSubLevel subLevelB =
-                getContainingSubLevel(level, attachmentB);
+                getContainingSubLevel(serverLevel, localB);
 
         if (subLevelA == null
                 || subLevelB == null
                 || subLevelA == subLevelB) {
             return false;
         }
+
+        final Vec3 globalA =
+                Sable.HELPER.projectOutOfSubLevel(serverLevel, localA);
+
+        final Vec3 globalB =
+                Sable.HELPER.projectOutOfSubLevel(serverLevel, localB);
 
         final Vector3d worldDirection =
                 new Vector3d(
@@ -267,59 +268,45 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         globalB.z - globalA.z
                 );
 
-        /*
-         * Если точки почти совпали, используем направление фаркопа,
-         * иначе normalize() даст некорректный результат.
-         */
         if (worldDirection.lengthSquared() < 0.000001D) {
-            final Direction facing =
-                    this.getBlockState().getValue(TowbarBlock.FACING);
-
-            worldDirection.set(
-                    facing.getStepX(),
-                    facing.getStepY(),
-                    facing.getStepZ()
-            );
+            return false;
         }
 
         worldDirection.normalize();
 
         /*
-         * Точка крепления второго тела смещается назад по оси сцепки.
+         * Это ключевая часть.
          *
-         * При этом:
-         * anchorA = hitchA
-         * anchorB = hitchB - direction * COUPLING_LENGTH
+         * pos1 и pos2 должны описывать одну и ту же точку joint
+         * в мировой системе, но в локальных координатах разных sublevel.
          *
-         * Constraint совмещает anchorA и anchorB, поэтому:
-         * hitchB - hitchA = direction * COUPLING_LENGTH
+         * Поэтому второй anchor переносится на уже существующую
+         * дистанцию между фаркопами, а не на произвольные 2 блока.
          */
-        final Vector3d backwardWorldOffset =
-                new Vector3d(worldDirection)
-                        .mul(-COUPLING_LENGTH);
+        final Vector3d worldAnchor =
+                new Vector3d(globalA.x, globalA.y, globalA.z);
 
-        final Vector3d localOffsetB =
-                subLevelB.logicalPose()
-                        .transformNormalInverse(backwardWorldOffset);
+        final Vector3d localAnchorA =
+                new Vector3d(localA.x, localA.y, localA.z);
 
         final Vector3d localAnchorB =
-                new Vector3d(
-                        attachmentB.x,
-                        attachmentB.y,
-                        attachmentB.z
-                ).add(localOffsetB);
+                subLevelB.logicalPose()
+                        .transformPositionInverse(worldAnchor);
 
         /*
-         * Ориентация продольной оси сцепки для первого тела.
+         * Ориентация продольной оси сцепки.
+         * Оси X/Y/Z блокируются, чтобы joint не растягивался
+         * и не сдвигался поперёк.
+         *
+         * ANGULAR_X/Y свободны, поэтому прицепы могут поворачиваться
+         * влево/вправо и вверх/вниз.
+         *
+         * ANGULAR_Z заблокирована, чтобы вал не вращался вокруг себя.
          */
         final Vector3d localDirectionA =
                 subLevelA.logicalPose()
                         .transformNormalInverse(worldDirection);
 
-        /*
-         * Для второго тела продольная ось направлена навстречу первой.
-         * Это важно для правильной ориентации шарнирного соединения.
-         */
         final Vector3d localDirectionB =
                 subLevelB.logicalPose()
                         .transformNormalInverse(
@@ -338,23 +325,9 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         localDirectionB
                 );
 
-        /*
-         * LINEAR_X/Y/Z:
-         * фиксируют расстояние и запрещают боковой сдвиг.
-         *
-         * ANGULAR_Z:
-         * не даёт валу вращаться вокруг продольной оси.
-         *
-         * ANGULAR_X/Y свободны:
-         * фаркопы могут поворачиваться вверх/вниз и влево/вправо.
-         */
         final GenericConstraintConfiguration configuration =
                 new GenericConstraintConfiguration(
-                        new Vector3d(
-                                attachmentA.x,
-                                attachmentA.y,
-                                attachmentA.z
-                        ),
+                        localAnchorA,
                         localAnchorB,
                         frameA,
                         frameB,
@@ -367,7 +340,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
                 );
 
         final SubLevelContainer container =
-                SubLevelContainer.getContainer(level);
+                SubLevelContainer.getContainer(serverLevel);
 
         if (!(container instanceof ServerSubLevelContainer serverContainer)) {
             return false;
@@ -381,20 +354,20 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         removePhysicsConstraint();
 
-        this.couplingConstraint =
+        couplingConstraint =
                 pipeline.addConstraint(
                         subLevelA,
                         subLevelB,
                         configuration
                 );
 
-        if (this.couplingConstraint == null) {
+        if (couplingConstraint == null) {
             return false;
         }
 
-        this.couplingConstraint.setContactsEnabled(false);
+        couplingConstraint.setContactsEnabled(false);
 
-        return this.couplingConstraint.isValid();
+        return couplingConstraint.isValid();
     }
 
     private static TowbarBlockEntity getTowbar(
@@ -408,20 +381,15 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     private void removePhysicsConstraint() {
-        if (this.couplingConstraint == null) {
-            return;
+        if (couplingConstraint != null) {
+            couplingConstraint.remove();
+            couplingConstraint = null;
         }
-
-        this.couplingConstraint.remove();
-        this.couplingConstraint = null;
     }
 
     public void detachCoupling() {
-        if (this.level != null) {
-            detachCoupling(
-                    this.level,
-                    this.worldPosition
-            );
+        if (level != null) {
+            detachCoupling(level, worldPosition);
         }
     }
 
@@ -436,12 +404,9 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return;
         }
 
-        final BlockPos targetPos =
-                first.couplingTarget;
+        final BlockPos targetPos = first.couplingTarget;
 
-        first.removePhysicsConstraint();
-        first.couplingTarget = null;
-        first.couplingOwner = false;
+        first.clearCouplingData();
         first.setChanged();
         first.blockEntityNotify();
 
@@ -456,9 +421,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return;
         }
 
-        second.removePhysicsConstraint();
-        second.couplingTarget = null;
-        second.couplingOwner = false;
+        second.clearCouplingData();
         second.setChanged();
         second.blockEntityNotify();
     }
@@ -473,20 +436,18 @@ public class TowbarBlockEntity extends SmartBlockEntity
     public void tick() {
         super.tick();
 
-        if (this.level == null
-                || this.level.isClientSide) {
+        if (level == null || level.isClientSide) {
             return;
         }
 
-        final BlockState state = this.getBlockState();
+        final BlockState state = getBlockState();
 
         if (state.hasProperty(TowbarBlock.HOOKED)) {
-            final boolean hooked =
-                    this.ropeHolder.isAttached();
+            final boolean hooked = ropeHolder.isAttached();
 
             if (state.getValue(TowbarBlock.HOOKED) != hooked) {
-                this.level.setBlock(
-                        this.worldPosition,
+                level.setBlock(
+                        worldPosition,
                         state.setValue(
                                 TowbarBlock.HOOKED,
                                 hooked
@@ -496,14 +457,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
             }
         }
 
-        if (!this.couplingOwner
-                || this.couplingTarget == null) {
+        if (!couplingOwner || couplingTarget == null) {
             return;
         }
 
-        if (this.couplingConstraint == null
-                || !this.couplingConstraint.isValid()) {
-            this.createPhysicsConstraint();
+        if (couplingConstraint == null
+                || !couplingConstraint.isValid()) {
+            createPhysicsConstraint();
         }
     }
 
@@ -515,17 +475,15 @@ public class TowbarBlockEntity extends SmartBlockEntity
     ) {
         super.write(tag, registries, clientPacket);
 
-        if (this.couplingTarget != null) {
+        if (couplingTarget != null) {
             tag.putLong(
                     "CouplingTarget",
-                    this.couplingTarget.asLong()
+                    couplingTarget.asLong()
             );
         }
 
-        tag.putBoolean(
-                "CouplingOwner",
-                this.couplingOwner
-        );
+        tag.putBoolean("CouplingOwner", couplingOwner);
+        tag.putDouble("CouplingLength", couplingLength);
     }
 
     @Override
@@ -536,14 +494,19 @@ public class TowbarBlockEntity extends SmartBlockEntity
     ) {
         super.read(tag, registries, clientPacket);
 
-        this.couplingTarget =
+        couplingTarget =
                 tag.contains("CouplingTarget")
                         ? BlockPos.of(
                                 tag.getLong("CouplingTarget")
                         )
                         : null;
 
-        this.couplingOwner =
+        couplingOwner =
                 tag.getBoolean("CouplingOwner");
+
+        couplingLength =
+                tag.contains("CouplingLength")
+                        ? tag.getDouble("CouplingLength")
+                        : 0.0D;
     }
 }
