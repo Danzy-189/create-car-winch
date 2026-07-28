@@ -85,8 +85,11 @@ public class TowbarBlock extends Block
     }
 
     @Override
-    public VoxelShape getSubLevelCollisionShape(final BlockGetter blockGetter, final BlockState state) {
-        return SHAPE;
+    public VoxelShape getSubLevelCollisionShape(
+        final BlockGetter blockGetter,
+        final BlockState state
+    ) {
+        return Shapes.empty();
     }
 
     @Override
