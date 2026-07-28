@@ -4,7 +4,7 @@
       {
         "name": "carwinch:winch_sound",
         "stream": true,
-        "volume": 1.0,
+        "volume": 0.75,
         "pitch": 1.0
       }
     ],
