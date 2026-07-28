@@ -69,9 +69,8 @@ public class TowbarRenderer
         }
 
         /*
-         * Эти точки локальные для своих sublevel.
-         * Их обязательно переводим в мировые координаты,
-         * иначе вал считается от локального нуля другого sublevel.
+         * getAttachmentPoint() возвращает локальные координаты
+         * каждого собственного sublevel.
          */
         final Vec3 localStart =
                 blockEntity.getAttachmentPoint();
@@ -79,6 +78,9 @@ public class TowbarRenderer
         final Vec3 localEnd =
                 target.getAttachmentPoint();
 
+        /*
+         * Переводим обе точки в одну мировую систему.
+         */
         final Vec3 start =
                 Sable.HELPER.projectOutOfSubLevel(
                         level,
@@ -92,31 +94,24 @@ public class TowbarRenderer
                 );
 
         final Vec3 delta = end.subtract(start);
-        final double length = delta.length();
 
-        if (length < 0.05D
-                || length > TowbarBlockEntity.MAX_COUPLING_DISTANCE + 0.25D) {
+        if (delta.lengthSqr() < 0.0001D) {
             return;
         }
 
+        /*
+         * Вал физикой имеет фиксированную длину.
+         * Не используем реальную текущую длину для scale.
+         */
+        final double length =
+                TowbarBlockEntity.COUPLING_LENGTH;
+
         final Vector3f direction =
                 new Vector3f(
-                        (float) (delta.x / length),
-                        (float) (delta.y / length),
-                        (float) (delta.z / length)
-                );
-
-        /*
-         * Create shaft-модель из AllPartialModels.
-         * Blocks.IRON_BLOCK используется только как BlockState,
-         * чтобы не тянуть Registrate BlockEntry из slim Create.
-         */
-        final SuperByteBuffer shaft =
-                CachedBuffers.partialFacing(
-                        AllPartialModels.SHAFT,
-                        Blocks.IRON_BLOCK.defaultBlockState(),
-                        Direction.UP
-                );
+                        (float) delta.x,
+                        (float) delta.y,
+                        (float) delta.z
+                ).normalize();
 
         final Quaternionf rotation =
                 new Quaternionf().rotationTo(
@@ -137,13 +132,20 @@ public class TowbarRenderer
                         lightPos
                 );
 
+        /*
+         * Create shaft partial.
+         * Blocks.IRON_BLOCK нужен только как безопасный BlockState
+         * для slim-сборки Create без Registrate BlockEntry.
+         */
+        final SuperByteBuffer shaft =
+                CachedBuffers.partialFacing(
+                        AllPartialModels.SHAFT,
+                        Blocks.IRON_BLOCK.defaultBlockState(),
+                        Direction.UP
+                );
+
         poseStack.pushPose();
 
-        /*
-         * BlockEntityRenderer уже находится в системе координат
-         * первого фаркопа, поэтому мировую start переводим относительно
-         * его block position.
-         */
         poseStack.translate(
                 start.x - blockEntity.getBlockPos().getX(),
                 start.y - blockEntity.getBlockPos().getY(),
@@ -153,8 +155,8 @@ public class TowbarRenderer
         poseStack.mulPose(rotation);
 
         /*
-         * SHAFT вытянут вдоль локальной оси Y.
-         * Центрируем поперечное сечение и растягиваем только длину.
+         * Поперечный размер постоянный.
+         * Длина постоянная и равна COUPLING_LENGTH.
          */
         poseStack.translate(-0.5D, 0.0D, -0.5D);
         poseStack.scale(
