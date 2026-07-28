@@ -1,5 +1,5 @@
 package dev.danzy.carwinch.content.item;
-
+import net.minecraft.util.UUIDUtil;
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
 import dev.danzy.carwinch.content.towbar.TowbarBlockEntity;
 import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
@@ -17,7 +17,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.TooltipFlag;
-import net.minecraft.world.item.TooltipContext;
+import net.minecraft.world.item.Item.TooltipContext;
 import net.minecraft.world.item.context.UseOnContext;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -122,7 +122,7 @@ public class IronRopeItem extends Item {
         final SubLevel subLevel =
                 container.getSubLevel(subLevelId);
 
-        return subLevel;
+        return SubLevelContainer.getContainer(level);
     }
 
     /**
@@ -420,7 +420,7 @@ public class IronRopeItem extends Item {
          * createRope() вызывается на holder лебёдки.
          * Simulated использует его уровень и знает оба sub-level.
          */
-        if (!winch.createRope(towbar, dropItem)) {
+        if (!winch.createRope(towbar)) {
             return false;
         }
 
