@@ -156,7 +156,7 @@ public class IronRopeItem extends Item {
             return false;
         }
 
-        if (!winch.createRope(towbar)) {
+        if (!winch.createRope(towbar, false)) {
             return false;
         }
 
