@@ -33,6 +33,7 @@ public class CarWinchBlockEntity extends SmartBlockEntity
 
     public final LerpedFloat drumAngle = LerpedFloat.angular();
     private float clientDrumSpeed;
+    private boolean lastPowered;
 
     public CarWinchBlockEntity(
             final BlockEntityType type,
@@ -72,32 +73,87 @@ public class CarWinchBlockEntity extends SmartBlockEntity
 @Override
 public void tick() {
     super.tick();
+
     if (this.level == null) {
         return;
     }
 
+    /*
+     * Клиент:
+     * обновляем визуальное вращение барабана.
+     */
     if (this.level.isClientSide) {
         this.invalidateRenderBoundingBox();
-        this.clientDrumSpeed = this.getBlockState().getValue(CarWinchBlock.POWERED) ? 14.0F : 0.0F;
-        this.drumAngle.setValue(this.drumAngle.getValue() + this.clientDrumSpeed);
+
+        this.clientDrumSpeed =
+                this.getBlockState()
+                        .getValue(CarWinchBlock.POWERED)
+                        ? 14.0F
+                        : 0.0F;
+
+        this.drumAngle.setValue(
+                this.drumAngle.getValue()
+                        + this.clientDrumSpeed
+        );
+
         return;
     }
 
+    /*
+     * Сервер:
+     * синхронизируем состояние наличия троса.
+     */
     this.syncRopedState();
 
-    final int power = this.level.getBestNeighborSignal(this.worldPosition);
-    this.syncPoweredState(power > 0);
+    /*
+     * Получаем текущую силу редстоун-сигнала.
+     * Значения находятся в диапазоне от 0 до 15.
+     */
+    final int power =
+            this.level.getBestNeighborSignal(
+                    this.worldPosition
+            );
 
-    if (power <= 0) {
-        return; // нет сигнала - барабан заблокирован, длина троса не меняется
+    final boolean powered = power > 0;
+
+    /*
+     * Звук проигрывается только в момент перехода:
+     *
+     * powered = false
+     * powered = true
+     *
+     * Поэтому звук не будет проигрываться каждый тик.
+     */
+    if (powered && !this.lastPowered) {
+        this.level.playSound(
+                null,
+                this.worldPosition,
+                CWSounds.WINCH_SOUND.get(),
+                SoundSource.BLOCKS,
+                1.0F,
+                1.0F
+        );
     }
 
-    final ServerRopeStrand strand = this.ropeHolder.getOwnedStrand();
-    if (strand != null && this.ropeHolder.ownsRope()) {
-        this.reelIn(strand, power);
+    /*
+     * Сохраняем текущее состояние для следующего тика.
+     */
+    this.lastPowered = powered;
+
+    /*
+     * Получаем физический трос, которым владеет лебёдка.
+     */
+    final ServerRopeStrand strand =
+            this.ropeHolder.getOwnedStrand();
+
+    if (strand != null
+            && this.ropeHolder.ownsRope()) {
+        this.updateRopeStrandExtension(
+                strand,
+                power
+        );
     }
 }
-
         /** POWERED теперь ведётся живым сигналом каждый тик, а не только по neighborChanged. */
 private void syncPoweredState(final boolean powered) {
     final BlockState state = this.getBlockState();
@@ -141,8 +197,80 @@ private void reelIn(final ServerRopeStrand strand, final int power) {
     }
 
     private void updateRopeStrandExtension(
-            final ServerRopeStrand strand
-    ) {
+        final ServerRopeStrand strand,
+        final int power
+) {
+    /*
+     * При отсутствии сигнала лебёдка ничего не делает.
+     */
+    if (power <= 0) {
+        return;
+    }
+
+    /*
+     * Чем сильнее редстоун-сигнал, тем быстрее смотка.
+     *
+     * power = 1  -> минимальная скорость
+     * power = 15 -> REEL_SPEED, то есть 0.075 блока/тик
+     */
+    final float movementSpeed =
+            -REEL_SPEED * (power / 15.0F);
+
+    /*
+     * Проверяем текущую длину троса.
+     */
+    final double currentExtension =
+            strand.getCurrentExtension();
+
+    /*
+     * Если трос уже достиг максимальной длины,
+     * не позволяем ему становиться длиннее.
+     */
+    if (currentExtension > MAX_RANGE
+            && movementSpeed > 0.0F) {
+        return;
+    }
+
+    double extension =
+            strand.getExtension()
+                    + movementSpeed;
+
+    final int minPointCount = 2;
+
+    /*
+     * Если точек осталось минимальное количество,
+     * не укорачиваем трос ниже одного блока.
+     */
+    if (extension < 1.0D
+            && strand.getPoints().size()
+            == minPointCount) {
+        extension = 1.0D;
+    } else {
+        /*
+         * Убираем начальные точки при смотке.
+         */
+        while (extension < 0.0D
+                && strand.getPoints().size()
+                > minPointCount) {
+            strand.removeFirstPoint();
+            extension +=
+                    ServerRopeStrand.SEGMENT_LENGTH;
+        }
+
+        /*
+         * Минимальная длина первого сегмента.
+         */
+        if (extension < 1.0D
+                && strand.getPoints().size()
+                <= minPointCount) {
+            extension = 1.0D;
+        }
+    }
+
+    strand.updateFirstSegmentExtension(
+            extension
+    );
+} {
         final int power =
                 this.level.getBestNeighborSignal(this.worldPosition);
 
