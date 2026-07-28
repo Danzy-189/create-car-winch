@@ -1,5 +1,5 @@
 package dev.danzy.carwinch;
-
+import dev.danzy.carwinch.registry.CWSounds;
 import dev.danzy.carwinch.registry.CWBlockEntities;
 import dev.danzy.carwinch.registry.CWBlocks;
 import dev.danzy.carwinch.registry.CWDataComponents;
