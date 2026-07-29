@@ -10,6 +10,7 @@
   "carwinch.rope.cleared": "Выбор сброшен",
   "carwinch.rope.occupied": "К этой точке уже привязан трос",
   "carwinch.rope.failed": "Не удалось привязать трос: слишком далеко или неверная пара лебёдок",
+  "carwinch.rope.wrong_item": "Верёвка здесь не работает: лебёдка и фаркоп соединяются только стальным тросом",
   "carwinch.coupling.tooltip": "ПКМ по двум фаркопам, чтобы соединить их жёстким валом",
   "carwinch.coupling.tooltip.length": "Максимальная длина вала: %s блока",
   "carwinch.coupling.tooltip.anchored": "Первый фаркоп: %s, %s, %s",

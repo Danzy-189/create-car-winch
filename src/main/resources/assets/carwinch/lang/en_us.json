@@ -10,6 +10,7 @@
   "carwinch.rope.cleared": "Selection cleared",
   "carwinch.rope.occupied": "This point already has a rope",
   "carwinch.rope.failed": "Could not attach rope: too far away or invalid winch/tow bar pair",
+  "carwinch.rope.wrong_item": "Plain rope does not work here: use the steel rope to link the winch and the tow bar",
   "carwinch.coupling.tooltip": "Right-click two tow bars to link them with a rigid shaft",
   "carwinch.coupling.tooltip.length": "Maximum shaft length: %s blocks",
   "carwinch.coupling.tooltip.anchored": "First tow bar: %s, %s, %s",
