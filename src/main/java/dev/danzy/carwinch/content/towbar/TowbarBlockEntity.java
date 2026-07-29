@@ -68,21 +68,32 @@ import java.util.List;
  *   <li>оси joint направлены по facing каждого из фаркопов.</li>
  * </ul>
  *
- * Раньше и то и другое считалось от мировой геометрии на момент клика,
+ * Раньше и то и другое считалось от мировой геометрии в момент клика,
  * поэтому случайное положение при сцеплении становилось нулевым положением
- * дышла: вал залипал в том повороте, в котором его скрепили, и дальше
- * менялся только угол шара. Теперь нулевое положение задаёт сам прицеп,
- * поэтому вал выравнивается по прицепу независимо от того, как его
- * скрепили.
+ * дышла: вал залипал в том повороте, в котором его скрепили. Теперь
+ * нулевое положение задаёт сам прицеп, поэтому вал выравнивается по
+ * прицепу независимо от того, как его скрепили.
  *
- * Побочная выгода: якоря больше не зависят от текущей позы, поэтому
- * констрейнт не нужно пересоздавать для перенацеливания — исчезли и дрожь,
- * и уползание длины, которые были у пересоздания.
+ * <h2>Разная высота фаркопов</h2>
+ *
+ * Линейные оси заблокированы жёстко, то есть решатель обязан свести оба
+ * якоря в одну точку. Если фаркопы стоят на разной высоте, а якорь дышла
+ * вынесен строго горизонтально, то в joint остаётся невязка по вертикали —
+ * и убрать её решатель может только одним способом: дёрнуть тела по
+ * вертикали. Именно от этого поднимались передние колёса и у машины, и у
+ * прицепа.
+ *
+ * Поэтому перепад высот между точками крепления замеряется при сцеплении
+ * ({@link #couplingHeightOffset}) и закладывается в якорь дышла, а не
+ * лечится силой. Дышло просто стоит под наклоном — ровно как настоящее
+ * дышло, у которого шар выше или ниже точки крепления, — и в покое joint
+ * вообще не напряжён. Тела продолжают лежать на рельефе.
  *
  * Свободы шара: рысканье свободно (складывание вплоть до «ножа»), наклон
- * вверх-вниз ограничен {@link #PITCH_LIMIT} — настоящий шар тоже
- * позволяет ограниченный перелом, а не любой; крен вокруг вала
- * заблокирован жёстко (ANGULAR_Z), иначе прицеп заваливается набок.
+ * вверх-вниз свободен вплоть до {@link #PITCH_LIMIT} — упор нужен только
+ * как ограничитель на крайности, потому что упирание в него создаёт ту же
+ * самую подбрасывающую силу; крен вокруг вала заблокирован жёстко
+ * (ANGULAR_Z), иначе прицеп заваливается набок.
  *
  * Длина вала замеряется при соединении и дальше постоянна (диапазон от
  * {@link #MIN_COUPLING_LENGTH} до {@link #MAX_COUPLING_LENGTH}).
@@ -100,11 +111,18 @@ public class TowbarBlockEntity extends SmartBlockEntity
     /** Минимальная длина: ниже не определить направление вала. */
     public static final double MIN_COUPLING_LENGTH = 0.05D;
 
-    /** Максимальный перепад по высоте: вал должен быть горизонтальным. */
-    public static final double MAX_VERTICAL_OFFSET = 0.75D;
+    /**
+     * Максимальный перепад высот между точками крепления, при котором
+     * сцепка ещё разрешена. Сам перепад не мешает: он закладывается в
+     * якорь дышла, поэтому запас можно держать щедрым.
+     */
+    public static final double MAX_VERTICAL_OFFSET = 1.5D;
 
-    /** Допустимый перелом сцепки вверх-вниз на шаре. */
-    private static final double PITCH_LIMIT = Math.toRadians(20.0D);
+    /**
+     * Крайний перелом сцепки вверх-вниз. Держим щедрым: упирание в упор
+     * создаёт силу, которая приподнимает тела на пригорках и спусках.
+     */
+    private static final double PITCH_LIMIT = Math.toRadians(45.0D);
 
     /**
      * Запас к допустимой геометрии, после которого считаем, что физику
@@ -125,6 +143,14 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
     /** Замеренная в момент клика длина вала. */
     private double couplingLength;
+
+    /**
+     * Замеренный в момент клика перепад высот: высота точки крепления
+     * прицепа минус высота точки крепления тягача. Закладывается в якорь
+     * дышла, чтобы разная высота фаркопов не превращалась в вертикальную
+     * невязку joint.
+     */
+    private double couplingHeightOffset;
 
     private GenericConstraintHandle couplingConstraint;
 
@@ -203,8 +229,8 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     /**
-     * Горизонтальная проекция расстояния: вал горизонтальный,
-     * поэтому вертикальную составляющую в длину не считаем.
+     * Горизонтальная проекция расстояния: длина вала считается по
+     * горизонтали, а перепад высот учитывается отдельно.
      */
     private static double horizontalLength(final Vec3 delta) {
         return Math.sqrt(delta.x * delta.x + delta.z * delta.z);
@@ -330,11 +356,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
         first.couplingTarget = second.worldPosition;
         first.couplingOwner = true;
         first.couplingLength = length;
+        first.couplingHeightOffset = globalDelta.y;
         first.resetRetryState();
 
         second.couplingTarget = first.worldPosition;
         second.couplingOwner = false;
         second.couplingLength = length;
+        second.couplingHeightOffset = globalDelta.y;
         second.resetRetryState();
 
         first.markUpdated();
@@ -376,6 +404,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
         couplingTarget = null;
         couplingOwner = false;
         couplingLength = 0.0D;
+        couplingHeightOffset = 0.0D;
         resetRetryState();
     }
 
@@ -459,7 +488,8 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         /*
          * Если длина потерялась (например, мир из старой версии),
-         * замеряем её заново по фактическому положению фаркопов.
+         * замеряем её заново вместе с перепадом высот по фактическому
+         * положению фаркопов.
          */
         if (couplingLength < MIN_COUPLING_LENGTH) {
             final Vec3 globalA =
@@ -483,7 +513,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
             couplingLength =
                     Math.min(measured, MAX_COUPLING_LENGTH);
 
+            couplingHeightOffset = Math.max(
+                    -MAX_VERTICAL_OFFSET,
+                    Math.min(MAX_VERTICAL_OFFSET, delta.y)
+            );
+
             target.couplingLength = couplingLength;
+            target.couplingHeightOffset = couplingHeightOffset;
 
             markUpdated();
             target.markUpdated();
@@ -498,11 +534,17 @@ public class TowbarBlockEntity extends SmartBlockEntity
          * СОБСТВЕННОМУ facing на длину вала. Именно поэтому нулевое
          * положение сцепки задаёт сам прицеп, а не случайная геометрия
          * в момент клика.
+         *
+         * По вертикали конец дышла поднимается (или опускается) на
+         * замеренный перепад высот: тогда в покое якоря совпадают сами
+         * собой и joint не тянет тела по вертикали. Разная высота
+         * фаркопов превращается в наклон дышла, а не в оторванные от
+         * земли колёса.
          */
         final Vector3d anchorB =
                 new Vector3d(
                         localB.x + facingB.getStepX() * couplingLength,
-                        localB.y + facingB.getStepY() * couplingLength,
+                        localB.y - couplingHeightOffset,
                         localB.z + facingB.getStepZ() * couplingLength
                 );
 
@@ -573,10 +615,12 @@ public class TowbarBlockEntity extends SmartBlockEntity
     /**
      * Ограничивает перелом сцепки вверх-вниз.
      *
-     * Настоящий шар тоже позволяет не любой наклон: прицеп качается на
-     * неровностях, но не переламывается пополам. Упор ставится только на
-     * одну угловую ось — упоры сразу на нескольких свободных угловых осях
-     * generic-joint решатель отрабатывает нестабильно.
+     * Упор нужен только как защита от крайностей: пока прицеп качается на
+     * рельефе, он до упора не доходит, потому что упирание в упор — это
+     * ровно та сила, которая приподнимает машину и прицеп над землёй.
+     * Ставится он только на одну угловую ось: упоры сразу на нескольких
+     * свободных угловых осях generic-joint решатель отрабатывает
+     * нестабильно.
      */
     private void applyPitchLimit() {
         if (couplingConstraint == null || !couplingConstraint.isValid()) {
@@ -601,6 +645,9 @@ public class TowbarBlockEntity extends SmartBlockEntity
      * Страховка от разлёта: если геометрия стала невозможной, рвём сцепку.
      * Пытаться стянуть разошедшиеся тела обратно — это как раз тот случай,
      * когда joint выдаёт импульс, уносящий sublevel по всему миру.
+     *
+     * Вертикаль сравнивается с заложенным перепадом высот, а не с нулём:
+     * наклонённое дышло — это норма, а не признак разлёта.
      */
     private boolean isCouplingSane(final ServerLevel serverLevel) {
         final TowbarBlockEntity target =
@@ -628,7 +675,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         return horizontalLength(delta)
                         <= MAX_COUPLING_LENGTH + SANITY_SLACK
-                && Math.abs(delta.y)
+                && Math.abs(delta.y - couplingHeightOffset)
                         <= MAX_VERTICAL_OFFSET + SANITY_SLACK;
     }
 
@@ -810,6 +857,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         tag.putBoolean("CouplingOwner", couplingOwner);
         tag.putDouble("CouplingLength", couplingLength);
+        tag.putDouble("CouplingHeight", couplingHeightOffset);
     }
 
     @Override
@@ -835,5 +883,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         tag.getDouble("CouplingLength"),
                         MAX_COUPLING_LENGTH
                 );
+
+        couplingHeightOffset = Math.max(
+                -MAX_VERTICAL_OFFSET,
+                Math.min(
+                        MAX_VERTICAL_OFFSET,
+                        tag.getDouble("CouplingHeight")
+                )
+        );
     }
 }
