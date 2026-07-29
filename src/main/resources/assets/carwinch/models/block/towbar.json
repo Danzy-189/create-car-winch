@@ -1,7 +1,76 @@
 {
-  "parent": "block/cube_all",
-  "textures": {
-    "all": "carwinch:block/towbar",
-    "particle": "carwinch:block/towbar"
-  }
+	"credit": "Geometry adapted from simulated:block/rope_connector/block_vertical (Create: Aeronautics / Simulated)",
+	"parent": "minecraft:block/block",
+	"texture_size": [32, 32],
+	"textures": {
+		"1": "simulated:block/rope_winch/winch",
+		"particle": "create:block/industrial_iron_block"
+	},
+	"elements": [
+		{
+			"name": "rail_top",
+			"from": [2.99, 9.99, 5.99],
+			"to": [13.01, 13.01, 9.01],
+			"faces": {
+				"north": {"uv": [0, 12.5, 5, 14], "rotation": 180, "texture": "#1"},
+				"east": {"uv": [0, 13.5, 0.5, 15], "rotation": 90, "texture": "#1"},
+				"south": {"uv": [0, 12.5, 5, 14], "texture": "#1"},
+				"west": {"uv": [0, 13.5, 0.5, 15], "rotation": 90, "texture": "#1"},
+				"up": {"uv": [0, 15, 5, 13.5], "texture": "#1"},
+				"down": {"uv": [0, 13.5, 5, 15], "texture": "#1"}
+			}
+		},
+		{
+			"name": "rail_bottom",
+			"from": [2.99, 2.99, 5.99],
+			"to": [13.01, 6.01, 9.01],
+			"faces": {
+				"north": {"uv": [0, 12.5, 5, 14], "rotation": 180, "texture": "#1"},
+				"east": {"uv": [0, 13.5, 0.5, 15], "rotation": 90, "texture": "#1"},
+				"south": {"uv": [0, 12.5, 5, 14], "texture": "#1"},
+				"west": {"uv": [0, 13.5, 0.5, 15], "rotation": 90, "texture": "#1"},
+				"up": {"uv": [0, 15, 5, 13.5], "texture": "#1"},
+				"down": {"uv": [0, 13.5, 5, 15], "texture": "#1"}
+			}
+		},
+		{
+			"name": "mount_plate",
+			"from": [2.01, 2.01, 4.01],
+			"to": [13.99, 13.99, 5.99],
+			"faces": {
+				"north": {"uv": [8, 6, 14, 12], "rotation": 90, "texture": "#1"},
+				"east": {"uv": [8, 12.5, 14, 11.5], "rotation": 90, "texture": "#1"},
+				"south": {"uv": [8, 6, 14, 12], "rotation": 270, "texture": "#1"},
+				"west": {"uv": [8, 12.5, 14, 11.5], "rotation": 270, "texture": "#1"},
+				"up": {"uv": [8, 12.5, 14, 11.5], "texture": "#1"},
+				"down": {"uv": [8, 11.5, 14, 12.5], "texture": "#1"}
+			}
+		},
+		{
+			"name": "jaw_upper",
+			"from": [6, 10, 9],
+			"to": [10, 13, 13],
+			"faces": {
+				"north": {"uv": [5, 12.5, 7, 14], "texture": "#1"},
+				"east": {"uv": [6, 12.5, 8, 14], "texture": "#1"},
+				"south": {"uv": [5, 12.5, 7, 14], "texture": "#1"},
+				"west": {"uv": [6, 12.5, 8, 14], "rotation": 180, "texture": "#1"},
+				"up": {"uv": [9, 14, 11, 16], "rotation": 180, "texture": "#1"},
+				"down": {"uv": [9, 14, 11, 16], "texture": "#1"}
+			}
+		},
+		{
+			"name": "jaw_lower",
+			"from": [6, 3, 9],
+			"to": [10, 6, 13],
+			"faces": {
+				"north": {"uv": [5, 12.5, 7, 14], "texture": "#1"},
+				"east": {"uv": [6, 12.5, 8, 14], "texture": "#1"},
+				"south": {"uv": [5, 12.5, 7, 14], "texture": "#1"},
+				"west": {"uv": [6, 12.5, 8, 14], "rotation": 180, "texture": "#1"},
+				"up": {"uv": [9, 14, 11, 16], "texture": "#1"},
+				"down": {"uv": [9, 14, 11, 16], "rotation": 180, "texture": "#1"}
+			}
+		}
+	]
 }
