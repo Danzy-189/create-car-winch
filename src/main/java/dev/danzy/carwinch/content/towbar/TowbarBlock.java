@@ -9,6 +9,7 @@ import dev.ryanhcode.sable.api.block.BlockSubLevelAssemblyListener;
 import dev.ryanhcode.sable.api.block.BlockSubLevelCollisionShape;
 import dev.simulated_team.simulated.content.blocks.rope.RopeHolderBlock;
 import dev.simulated_team.simulated.index.SimTags;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
@@ -23,6 +24,7 @@ import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.item.TooltipFlag;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
@@ -40,6 +42,8 @@ import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import org.jetbrains.annotations.Nullable;
+
+import java.util.List;
 
 public class TowbarBlock extends Block
         implements RopeHolderBlock,
@@ -111,6 +115,31 @@ public class TowbarBlock extends Block
                         context.getHorizontalDirection().getOpposite()
                 )
                 .setValue(HOOKED, false);
+    }
+
+    /**
+     * Подсказка в инвентаре. Порядок кликов сцепкой важен: первый клик —
+     * сторона шара, то есть ведущая машина, второй — прицеп. Из самой игры
+     * это никак не следовало, поэтому пишем прямо в описании предмета.
+     */
+    @Override
+    protected void appendHoverText(
+            final ItemStack stack,
+            final Item.TooltipContext context,
+            final List<Component> tooltipComponents,
+            final TooltipFlag tooltipFlag
+    ) {
+        super.appendHoverText(stack, context, tooltipComponents, tooltipFlag);
+
+        tooltipComponents.add(
+                Component.translatable("block.carwinch.towbar.tooltip.order")
+                        .withStyle(ChatFormatting.GRAY)
+        );
+
+        tooltipComponents.add(
+                Component.translatable("block.carwinch.towbar.tooltip.ball")
+                        .withStyle(ChatFormatting.DARK_GRAY)
+        );
     }
 
     /**
