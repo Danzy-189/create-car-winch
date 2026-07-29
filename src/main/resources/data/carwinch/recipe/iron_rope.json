@@ -1,14 +1,14 @@
 {
   "type": "minecraft:crafting_shaped",
-  "category": "misc",
+  "category": "redstone",
   "pattern": [
-    "N",
+    "S",
     "C",
-    "N"
+    "S"
   ],
   "key": {
-    "N": {
-      "item": "minecraft:iron_nugget"
+    "S": {
+      "item": "create:iron_sheet"
     },
     "C": {
       "item": "minecraft:chain"
