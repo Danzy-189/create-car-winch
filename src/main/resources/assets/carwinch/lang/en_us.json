@@ -11,7 +11,7 @@
   "carwinch.rope.occupied": "This point already has a rope",
   "carwinch.rope.failed": "Could not attach rope: too far away or invalid winch/tow bar pair",
   "carwinch.coupling.tooltip": "Right-click two tow bars to link them with a rigid shaft",
-  "carwinch.coupling.tooltip.length": "Shaft length: %s blocks",
+  "carwinch.coupling.tooltip.length": "Maximum shaft length: %s blocks",
   "carwinch.coupling.tooltip.anchored": "First tow bar: %s, %s, %s",
   "carwinch.coupling.selected": "Tow bar selected, now select the second one",
   "carwinch.coupling.cleared": "Coupling selection cleared",
@@ -19,7 +19,8 @@
   "carwinch.coupling.failed": "Could not couple the tow bars",
   "carwinch.coupling.failed.same": "Pick two different tow bars",
   "carwinch.coupling.failed.horizontal": "The shaft must be horizontal: the tow bars are at different heights",
-  "carwinch.coupling.failed.length": "Wrong distance: the tow bars must be about 2 blocks apart",
+  "carwinch.coupling.failed.length": "Too far apart: tow bars must be at most 4 blocks apart",
+  "carwinch.coupling.failed.too_close": "The tow bars are too close together",
   "carwinch.coupling.failed.contraption": "Both tow bars must sit on an assembled contraption",
   "carwinch.coupling.failed.same_contraption": "Both tow bars are on the same contraption",
   "carwinch.coupling.failed.physics": "Physics rejected the coupling"
