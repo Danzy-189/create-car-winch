@@ -1,57 +1,53 @@
 package dev.danzy.carwinch.content.towbar;
 
-import net.minecraft.client.resources.model.ModelResourceLocation;
 import com.mojang.blaze3d.vertex.PoseStack;
-import com.mojang.blaze3d.vertex.VertexConsumer;
-import com.mojang.math.Axis;
 import com.simibubi.create.foundation.blockEntity.renderer.SafeBlockEntityRenderer;
 import dev.ryanhcode.sable.Sable;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
-import net.minecraft.client.resources.model.BakedModel;
+import net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
-import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.Level;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
+import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
+/**
+ * Рисует сцепку между двумя фаркопами как горизонтальный вал Create
+ * фиксированной длины.
+ *
+ * Берётся именно блок create:shaft с AXIS=X, поэтому вал выглядит и
+ * текстурируется точно так же, как обычный вал в Create, и автоматически
+ * подхватывает ресурспаки. Модель выкладывается сегментами по одному
+ * блоку вдоль оси сцепки.
+ */
 public class TowbarRenderer
         extends SafeBlockEntityRenderer<TowbarBlockEntity> {
 
-   private static final ModelResourceLocation COUPLING_MODEL =
-        ModelResourceLocation.standalone(
-                ResourceLocation.fromNamespaceAndPath(
-                        "carwinch",
-                        "block/coupling"
-                )
-        );
+    private static final ResourceLocation SHAFT_ID =
+            ResourceLocation.fromNamespaceAndPath("create", "shaft");
 
-    /**
-     * Модель в JSON имеет длину 16 model-units,
-     * то есть один полный Minecraft-блок.
-     */
-    private static final float MODEL_LENGTH_IN_BLOCKS = 1.0F;
+    /** Длина одного сегмента модели вала в блоках. */
+    private static final double SEGMENT_LENGTH = 1.0D;
 
-    /**
-     * Поперечный масштаб сцепки.
-     * Если вал слишком толстый или тонкий, меняй только это значение.
-     */
-    private static final float COUPLING_WIDTH = 1.0F;
+    @Nullable
+    private static BlockState cachedShaftState;
 
-    public TowbarRenderer(
-            final net.minecraft.client.renderer.blockentity.BlockEntityRendererProvider.Context context
-    ) {
+    public TowbarRenderer(final BlockEntityRendererProvider.Context context) {
     }
 
     @Override
-    public boolean shouldRenderOffScreen(
-            final TowbarBlockEntity blockEntity
-    ) {
+    public boolean shouldRenderOffScreen(final TowbarBlockEntity blockEntity) {
         return true;
     }
 
@@ -74,6 +70,7 @@ public class TowbarRenderer
     ) {
         final Level level = blockEntity.getLevel();
 
+        // Рисует только владелец сцепки, иначе вал был бы нарисован дважды.
         if (level == null
                 || !blockEntity.isCouplingOwner()
                 || blockEntity.getCouplingTarget() == null) {
@@ -81,203 +78,190 @@ public class TowbarRenderer
         }
 
         final TowbarBlockEntity target =
-                getTarget(
-                        level,
-                        blockEntity.getCouplingTarget()
-                );
+                getTarget(level, blockEntity.getCouplingTarget());
 
         if (target == null) {
             return;
         }
 
         /*
-         * Эти точки локальные для разных sublevel.
-         * Сначала обязательно переводим обе в мировую систему.
+         * Точки крепления локальны для разных sublevel,
+         * поэтому обе переводим в мировую систему.
          */
-        final Vec3 localStart =
-                blockEntity.getAttachmentPoint();
+        final Vec3 start = Sable.HELPER.projectOutOfSubLevel(
+                level,
+                blockEntity.getAttachmentPoint()
+        );
 
-        final Vec3 localEnd =
-                target.getAttachmentPoint();
-
-        final Vec3 start =
-                Sable.HELPER.projectOutOfSubLevel(
-                        level,
-                        localStart
-                );
-
-        final Vec3 end =
-                Sable.HELPER.projectOutOfSubLevel(
-                        level,
-                        localEnd
-                );
+        final Vec3 end = Sable.HELPER.projectOutOfSubLevel(
+                level,
+                target.getAttachmentPoint()
+        );
 
         final Vec3 delta = end.subtract(start);
-        final double length = delta.length();
 
-        if (length < 0.05D) {
+        // Вал горизонтальный: вертикальную составляющую игнорируем.
+        final double horizontalLength =
+                Math.sqrt(delta.x * delta.x + delta.z * delta.z);
+
+        if (horizontalLength < 0.05D) {
             return;
         }
 
-        /*
-         * Модель coupling.json вертикальная:
-         * от Y=0 до Y=16.
-         * Поэтому исходная ось модели направлена вверх, по +Y.
-         */
-        final Vector3f direction =
-                new Vector3f(
-                        (float) (delta.x / length),
-                        (float) (delta.y / length),
-                        (float) (delta.z / length)
-                ).normalize();
+        final Vector3f direction = new Vector3f(
+                (float) (delta.x / horizontalLength),
+                0.0F,
+                (float) (delta.z / horizontalLength)
+        );
 
-        /*
-         * Загружаем именно block-модель:
-         * assets/carwinch/models/block/coupling.json
-         */
-        final BakedModel model =
-                Minecraft.getInstance()
-                        .getModelManager()
-                        .getModel(COUPLING_MODEL);
+        final BlockState shaftState = shaftState();
 
-        if (model == null
-                || model == Minecraft.getInstance()
-                        .getModelManager()
-                        .getMissingModel()) {
+        if (shaftState == null) {
             return;
         }
 
         final BlockRenderDispatcher blockRenderer =
-                Minecraft.getInstance()
-                        .getBlockRenderer();
+                Minecraft.getInstance().getBlockRenderer();
 
-        final BlockState renderState =
-                Blocks.IRON_BLOCK.defaultBlockState();
+        final BlockPos lightPos = BlockPos.containing(start.x, start.y, start.z);
 
-        final VertexConsumer consumer =
-                buffer.getBuffer(
-                        net.minecraft.client.renderer.RenderType.solid()
-                );
+        final int shaftLight = LevelRenderer.getLightColor(level, lightPos);
 
-        final BlockPos lightPos =
-                BlockPos.containing(
-                        start.x,
-                        start.y,
-                        start.z
-                );
-
-        final int shaftLight =
-                LevelRenderer.getLightColor(
-                        level,
-                        lightPos
-                );
-
-        /*
-         * Renderer уже находится в координатах первого фаркопа.
-         * Переводим начало вала из мировых координат
-         * в локальные координаты render block entity.
-         */
-        final double relativeX =
-                start.x - blockEntity.getBlockPos().getX();
-
-        final double relativeY =
-                start.y - blockEntity.getBlockPos().getY();
-
-        final double relativeZ =
-                start.z - blockEntity.getBlockPos().getZ();
+        // Renderer уже стоит в координатах блока, поэтому смещаемся относительно него.
+        final BlockPos origin = blockEntity.getBlockPos();
 
         poseStack.pushPose();
 
         poseStack.translate(
-                relativeX,
-                relativeY,
-                relativeZ
+                start.x - origin.getX(),
+                start.y - origin.getY(),
+                start.z - origin.getZ()
         );
 
+        poseStack.mulPose(rotationFromPositiveX(direction));
+
         /*
-         * Поворачиваем вертикальную модель вдоль направления
-         * от первого фаркопа ко второму.
+         * Длина всегда номинальная, а не фактическая: сцепка жёсткая,
+         * а физика удерживает фаркопы на этом же расстоянии.
          */
-        rotatePositiveYToDirection(
+        final double length = blockEntity.getCouplingLength();
+
+        final int fullSegments = (int) Math.floor(length / SEGMENT_LENGTH);
+        final double remainder = length - fullSegments * SEGMENT_LENGTH;
+
+        for (int segment = 0; segment < fullSegments; segment++) {
+            renderSegment(
+                    blockRenderer,
+                    shaftState,
+                    poseStack,
+                    buffer,
+                    shaftLight,
+                    overlay,
+                    segment * SEGMENT_LENGTH,
+                    1.0F
+            );
+        }
+
+        if (remainder > 0.01D) {
+            renderSegment(
+                    blockRenderer,
+                    shaftState,
+                    poseStack,
+                    buffer,
+                    shaftLight,
+                    overlay,
+                    fullSegments * SEGMENT_LENGTH,
+                    (float) (remainder / SEGMENT_LENGTH)
+            );
+        }
+
+        poseStack.popPose();
+    }
+
+    private static void renderSegment(
+            final BlockRenderDispatcher blockRenderer,
+            final BlockState shaftState,
+            final PoseStack poseStack,
+            final MultiBufferSource buffer,
+            final int light,
+            final int overlay,
+            final double offsetAlongAxis,
+            final float lengthScale
+    ) {
+        poseStack.pushPose();
+
+        /*
+         * Модель вала занимает куб 0..1 и центрирована по Y и Z,
+         * поэтому сдвигаем её на -0.5, чтобы ось совпала с линией сцепки.
+         */
+        poseStack.translate(offsetAlongAxis, -0.5D, -0.5D);
+
+        if (lengthScale != 1.0F) {
+            poseStack.scale(lengthScale, 1.0F, 1.0F);
+        }
+
+        blockRenderer.renderSingleBlock(
+                shaftState,
                 poseStack,
-                direction
-        );
-
-        /*
-         * coupling.json имеет размер 1x1x1 блок.
-         * Масштаб по Y равен фактической длине между фаркопами.
-         * Sublevel при этом вообще не перемещаются.
-         */
-        poseStack.scale(
-                COUPLING_WIDTH,
-                (float) (length / MODEL_LENGTH_IN_BLOCKS),
-                COUPLING_WIDTH
-        );
-
-        /*
-         * ModelBlockRenderer ожидает обычную block-модель
-         * с координатами от 0 до 1.
-         */
-        blockRenderer.getModelRenderer().tesselateBlock(
-                level,
-                model,
-                renderState,
-                blockEntity.getBlockPos(),
-                poseStack,
-                consumer,
-                true,
-                RandomSource.create(0L),
-                0L,
+                buffer,
+                light,
                 overlay
         );
 
         poseStack.popPose();
     }
 
-    private static void rotatePositiveYToDirection(
-            final PoseStack poseStack,
-            final Vector3f direction
-    ) {
-        final Vector3f up = new Vector3f(0.0F, 1.0F, 0.0F);
-
-        /*
-         * Если направление почти вертикальное, обычный rotationTo
-         * работает нестабильно, поэтому обрабатываем обе крайние ситуации.
-         */
-        if (direction.dot(up) > 0.9999F) {
-            return;
+    /**
+     * Вал Create, развёрнутый вдоль оси X.
+     */
+    @Nullable
+    private static BlockState shaftState() {
+        if (cachedShaftState != null) {
+            return cachedShaftState;
         }
 
-        if (direction.dot(up) < -0.9999F) {
-            poseStack.mulPose(Axis.XP.rotationDegrees(180.0F));
-            return;
+        final Block shaft = BuiltInRegistries.BLOCK.get(SHAFT_ID);
+
+        if (shaft == null || shaft == Blocks.AIR) {
+            return null;
         }
 
-        final Vector3f axis =
-                up.cross(direction, new Vector3f()).normalize();
+        BlockState state = shaft.defaultBlockState();
 
-        final float angle =
-                (float) Math.acos(
-                        Math.max(
-                                -1.0F,
-                                Math.min(
-                                        1.0F,
-                                        up.dot(direction)
-                                )
-                        )
-                );
+        if (state.hasProperty(BlockStateProperties.AXIS)) {
+            state = state.setValue(
+                    BlockStateProperties.AXIS,
+                    Direction.Axis.X
+            );
+        }
 
-        poseStack.mulPose(
-                new org.joml.Quaternionf()
-                        .fromAxisAngleRad(
-                                axis.x,
-                                axis.y,
-                                axis.z,
-                                angle
-                        )
-        );
+        cachedShaftState = state;
+        return state;
     }
 
+    /**
+     * Поворот, переводящий +X в заданное горизонтальное направление.
+     * Случай строго противоположного направления обрабатываем отдельно:
+     * rotationTo на антипараллельных векторах неустойчив.
+     */
+    private static Quaternionf rotationFromPositiveX(final Vector3f direction) {
+        final Vector3f axisX = new Vector3f(1.0F, 0.0F, 0.0F);
+
+        final float dot = axisX.dot(direction);
+
+        if (dot > 0.9999F) {
+            return new Quaternionf();
+        }
+
+        if (dot < -0.9999F) {
+            return new Quaternionf()
+                    .fromAxisAngleRad(0.0F, 1.0F, 0.0F, (float) Math.PI);
+        }
+
+        return new Quaternionf().rotationTo(axisX, direction);
+    }
+
+    @Nullable
     private static TowbarBlockEntity getTarget(
             final Level level,
             final BlockPos pos

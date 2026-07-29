@@ -10,6 +10,8 @@ import dev.simulated_team.simulated.content.blocks.rope.strand.server.ServerRope
 import net.createmod.catnip.animation.LerpedFloat;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.HolderLookup;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntityType;
@@ -41,6 +43,16 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
     /** Purely cosmetic drum spin, driven client side. */
     public final LerpedFloat drumAngle = LerpedFloat.angular();
     private float clientDrumSpeed;
+
+    /**
+     * Сила и направление работы лебёдки, посчитанные на сервере
+     * и синхронизированные на клиент.
+     *
+     * Раньше клиент сам вызывал level.getSignal(), но на клиенте
+     * сила редстоуна достоверна не всегда, из-за чего анимация
+     * барабана расходилась с реальной работой лебёдки.
+     */
+    private int commandedPower;
 
     public CarWinchBlockEntity(final BlockEntityType<?> type, final BlockPos pos, final BlockState state) {
         super(type, pos, state);
@@ -75,6 +87,22 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
         return level.getSignal(pos.relative(side), side);
     }
 
+    /** Максимальный "тянущий" сигнал: сверху или с любой боковой стороны. */
+    private static int pullSignal(final Level level, final BlockPos pos) {
+        int pull = signalFrom(level, pos, Direction.UP);
+
+        for (final Direction side : Direction.Plane.HORIZONTAL) {
+            pull = Math.max(pull, signalFrom(level, pos, side));
+        }
+
+        return pull;
+    }
+
+    /** "Травящий" сигнал: только снизу. */
+    private static int releaseSignal(final Level level, final BlockPos pos) {
+        return signalFrom(level, pos, Direction.DOWN);
+    }
+
     /**
      * Куда и насколько сильно работает лебёдка.
      *
@@ -87,19 +115,20 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
      * Диапазон -15..15.
      */
     public static int getCommandedPower(final Level level, final BlockPos pos) {
-        int pull = signalFrom(level, pos, Direction.UP);
-        for (final Direction side : Direction.Plane.HORIZONTAL) {
-            pull = Math.max(pull, signalFrom(level, pos, side));
-        }
-        final int release = signalFrom(level, pos, Direction.DOWN);
-        return pull - release;
+        return pullSignal(level, pos) - releaseSignal(level, pos);
     }
 
-    /** true, если сигналы с двух сторон гасят друг друга - трос заблокирован. */
+    /** true, если сигналы гасят друг друга - трос заблокирован. */
     private static boolean isBraked(final Level level, final BlockPos pos) {
-        return getCommandedPower(level, pos) == 0
-                && (signalFrom(level, pos, Direction.DOWN) > 0
-                    || signalFrom(level, pos, Direction.UP) > 0);
+        final int pull = pullSignal(level, pos);
+        final int release = releaseSignal(level, pos);
+
+        return pull == release && pull > 0;
+    }
+
+    /** Синхронизированная сила: положительная тянет, отрицательная травит. */
+    public int getCommandedPower() {
+        return this.commandedPower;
     }
 
     @Override
@@ -113,16 +142,22 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
             this.invalidateRenderBoundingBox();
             // сначала применяем скорость, посчитанную в прошлом тике, потом обновляем её
             this.drumAngle.setValue(this.drumAngle.getValue() + this.clientDrumSpeed);
-            final int commanded = getCommandedPower(this.level, this.worldPosition);
-            this.clientDrumSpeed = DRUM_SPIN_PER_TICK * (commanded / 15.0F);
+            this.clientDrumSpeed = DRUM_SPIN_PER_TICK * (this.commandedPower / 15.0F);
             return;
+        }
+
+        final int commanded = getCommandedPower(this.level, this.worldPosition);
+
+        if (commanded != this.commandedPower) {
+            this.commandedPower = commanded;
+            this.notifyUpdate();
         }
 
         this.syncRopedState();
 
         final ServerRopeStrand strand = this.ropeHolder.getOwnedStrand();
         if (strand != null && this.ropeHolder.ownsRope()) {
-            this.updateRopeStrandExtension(strand);
+            this.updateRopeStrandExtension(strand, commanded);
         }
     }
 
@@ -143,12 +178,10 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
      * Без сигнала лебёдка на свободном ходу и травит трос, когда он натянулся,
      * чтобы буксируемое всё ещё могло уехать.
      */
-    private void updateRopeStrandExtension(final ServerRopeStrand strand) {
+    private void updateRopeStrandExtension(final ServerRopeStrand strand, final int commanded) {
         final double desiredExtension = strand.getExtension()
                 + (strand.getPoints().size() - 2) * ServerRopeStrand.SEGMENT_LENGTH;
         final double currentExtension = strand.getCurrentExtension();
-
-        final int commanded = getCommandedPower(this.level, this.worldPosition);
 
         float movementSpeed;
         if (commanded > 0) {
@@ -195,6 +228,18 @@ public class CarWinchBlockEntity extends SmartBlockEntity implements RopeStrandH
         }
 
         strand.updateFirstSegmentExtension(extension);
+    }
+
+    @Override
+    protected void write(final CompoundTag tag, final HolderLookup.Provider registries, final boolean clientPacket) {
+        super.write(tag, registries, clientPacket);
+        tag.putInt("CommandedPower", this.commandedPower);
+    }
+
+    @Override
+    protected void read(final CompoundTag tag, final HolderLookup.Provider registries, final boolean clientPacket) {
+        super.read(tag, registries, clientPacket);
+        this.commandedPower = tag.getInt("CommandedPower");
     }
 
     @Override

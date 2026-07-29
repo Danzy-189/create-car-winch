@@ -2,6 +2,7 @@ package dev.danzy.carwinch.content.item;
 
 import dev.danzy.carwinch.content.towbar.TowbarBlockEntity;
 import dev.danzy.carwinch.registry.CWDataComponents;
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.sounds.SoundEvents;
@@ -18,6 +19,13 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * Сцепка: жёсткий вал Create фиксированной длины между двумя фаркопами.
+ *
+ * Первый клик выбирает фаркоп, второй ставит вал. Shift + ПКМ сбрасывает выбор.
+ * Вся логика серверная, поэтому дата-компонент не расходится с клиентом,
+ * а причина отказа всегда показывается игроку.
+ */
 public class CouplingItem extends Item {
 
     public CouplingItem(final Properties properties) {
@@ -34,6 +42,12 @@ public class CouplingItem extends Item {
         stack.remove(CWDataComponents.COUPLING_FIRST_CONNECTION.get());
     }
 
+    private static void notify(@Nullable final Player player, @Nullable final String key) {
+        if (player != null && key != null) {
+            player.displayClientMessage(Component.translatable(key), true);
+        }
+    }
+
     @Override
     public InteractionResult useOn(final UseOnContext context) {
         final Level level = context.getLevel();
@@ -41,33 +55,25 @@ public class CouplingItem extends Item {
         final ItemStack stack = context.getItemInHand();
         final Player player = context.getPlayer();
 
-        if (player != null && player.isShiftKeyDown()) {
-            clearSelection(stack);
-
-            if (level.isClientSide && player != null) {
-                player.displayClientMessage(
-                        Component.translatable("carwinch.coupling.cleared"),
-                        true
-                );
-            }
-
-            return InteractionResult.SUCCESS;
-        }
-
+        final boolean sneaking = player != null && player.isShiftKeyDown();
         final TowbarBlockEntity clicked = getTowbar(level, clickedPos);
 
-        if (clicked == null) {
+        if (!sneaking && clicked == null) {
             return super.useOn(context);
         }
 
-        if (clicked.isCoupled()) {
-            if (level.isClientSide && player != null) {
-                player.displayClientMessage(
-                        Component.translatable("carwinch.coupling.occupied"),
-                        true
-                );
-            }
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;
+        }
 
+        if (sneaking) {
+            clearSelection(stack);
+            notify(player, "carwinch.coupling.cleared");
+            return InteractionResult.SUCCESS;
+        }
+
+        if (clicked.isCoupled()) {
+            notify(player, "carwinch.coupling.occupied");
             return InteractionResult.SUCCESS;
         }
 
@@ -80,60 +86,53 @@ public class CouplingItem extends Item {
                     clickedPos
             );
 
-            if (level.isClientSide && player != null) {
-                player.displayClientMessage(
-                        Component.translatable("carwinch.coupling.selected"),
-                        true
-                );
-            }
-
+            notify(player, "carwinch.coupling.selected");
             return InteractionResult.SUCCESS;
         }
 
         if (firstPos.equals(clickedPos)) {
             clearSelection(stack);
+            notify(player, "carwinch.coupling.cleared");
             return InteractionResult.SUCCESS;
         }
 
-        if (!level.isClientSide) {
-            final TowbarBlockEntity first = getTowbar(level, firstPos);
+        final TowbarBlockEntity first = getTowbar(level, firstPos);
 
-            final boolean created =
-                    first != null
-                            && TowbarBlockEntity.createCoupling(first, clicked);
+        clearSelection(stack);
 
-            clearSelection(stack);
+        if (first == null) {
+            notify(player, "carwinch.coupling.failed");
+            return InteractionResult.SUCCESS;
+        }
 
-            if (created) {
-                level.playSound(
-                        null,
-                        firstPos,
-                        SoundEvents.IRON_TRAPDOOR_OPEN,
-                        SoundSource.BLOCKS,
-                        0.8F,
-                        0.8F
-                );
+        final TowbarBlockEntity.CouplingResult result =
+                TowbarBlockEntity.createCoupling(first, clicked);
 
-                level.playSound(
-                        null,
-                        clickedPos,
-                        SoundEvents.IRON_TRAPDOOR_OPEN,
-                        SoundSource.BLOCKS,
-                        0.8F,
-                        0.8F
-                );
+        if (!result.isSuccess()) {
+            notify(player, result.translationKey());
+            return InteractionResult.SUCCESS;
+        }
 
-                if (player != null && !player.hasInfiniteMaterials()) {
-                    stack.shrink(1);
-                }
-            } else if (player != null) {
-                player.displayClientMessage(
-                        Component.translatable("carwinch.coupling.failed"),
-                        true
-                );
-            }
-        } else {
-            clearSelection(stack);
+        level.playSound(
+                null,
+                firstPos,
+                SoundEvents.IRON_TRAPDOOR_OPEN,
+                SoundSource.BLOCKS,
+                0.8F,
+                0.8F
+        );
+
+        level.playSound(
+                null,
+                clickedPos,
+                SoundEvents.IRON_TRAPDOOR_OPEN,
+                SoundSource.BLOCKS,
+                0.8F,
+                0.8F
+        );
+
+        if (player != null && !player.hasInfiniteMaterials()) {
+            stack.shrink(1);
         }
 
         return InteractionResult.SUCCESS;
@@ -148,6 +147,28 @@ public class CouplingItem extends Item {
     ) {
         tooltip.add(
                 Component.translatable("carwinch.coupling.tooltip")
+                        .withStyle(ChatFormatting.GRAY)
         );
+
+        tooltip.add(
+                Component.translatable(
+                        "carwinch.coupling.tooltip.length",
+                        String.valueOf(TowbarBlockEntity.COUPLING_LENGTH)
+                ).withStyle(ChatFormatting.DARK_GRAY)
+        );
+
+        final BlockPos firstPos =
+                stack.get(CWDataComponents.COUPLING_FIRST_CONNECTION.get());
+
+        if (firstPos != null) {
+            tooltip.add(
+                    Component.translatable(
+                            "carwinch.coupling.tooltip.anchored",
+                            firstPos.getX(),
+                            firstPos.getY(),
+                            firstPos.getZ()
+                    ).withStyle(ChatFormatting.GOLD)
+            );
+        }
     }
 }

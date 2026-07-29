@@ -28,6 +28,10 @@ import java.util.List;
  * Первый клик выбирает лебёдку или буксир, второй соединяет их через Simulated.
  * Shift + ПКМ очищает выбор.
  *
+ * Вся логика и все сообщения выполняются на сервере: дата-компонент с якорем
+ * сам синхронизируется на клиент, поэтому раньше клиентская правка стека
+ * могла разойтись с серверной.
+ *
  * Про sub-level'ы: Sable не создаёт для них отдельные {@link Level}. Sub-level - это
  * LevelPlot внутри того же самого уровня, просто с другой позой. Поэтому обычного
  * level.getBlockEntity(pos) достаточно и для блоков на собранной конструкции.
@@ -63,12 +67,16 @@ public class IronRopeItem extends Item {
         return holder != null && holder.blockEntity instanceof TowbarBlockEntity;
     }
 
+    private static boolean isValidAnchor(@Nullable final RopeStrandHolderBehavior holder) {
+        return isWinch(holder) || isTowbar(holder);
+    }
+
     private static void clearSelection(final ItemStack stack) {
         stack.remove(CWDataComponents.FIRST_CONNECTION.get());
     }
 
-    private static void notify(final Level level, @Nullable final Player player, final String key) {
-        if (level.isClientSide && player != null) {
+    private static void notify(@Nullable final Player player, final String key) {
+        if (player != null) {
             player.displayClientMessage(Component.translatable(key), true);
         }
     }
@@ -80,20 +88,28 @@ public class IronRopeItem extends Item {
         final ItemStack stack = context.getItemInHand();
         final Player player = context.getPlayer();
 
-        // Shift + ПКМ - сброс выбора.
-        if (player != null && player.isShiftKeyDown()) {
-            clearSelection(stack);
-            notify(level, player, "carwinch.rope.cleared");
-            return InteractionResult.SUCCESS;
-        }
-
         final RopeStrandHolderBehavior clicked = getRopeHolder(level, clickedPos);
-        if (!isWinch(clicked) && !isTowbar(clicked)) {
+        final boolean sneaking = player != null && player.isShiftKeyDown();
+
+        // Клик по постороннему блоку без Shift обычному поведению не мешаем.
+        if (!sneaking && !isValidAnchor(clicked)) {
             return super.useOn(context);
         }
 
+        // Клиент только подтверждает взмах, всё решает сервер.
+        if (level.isClientSide) {
+            return InteractionResult.SUCCESS;
+        }
+
+        // Shift + ПКМ - сброс выбора.
+        if (sneaking) {
+            clearSelection(stack);
+            notify(player, "carwinch.rope.cleared");
+            return InteractionResult.SUCCESS;
+        }
+
         if (clicked.isAttached()) {
-            notify(level, player, "carwinch.rope.occupied");
+            notify(player, "carwinch.rope.occupied");
             return InteractionResult.SUCCESS;
         }
 
@@ -102,19 +118,14 @@ public class IronRopeItem extends Item {
         // Первый клик - запоминаем якорь.
         if (firstPos == null) {
             stack.set(CWDataComponents.FIRST_CONNECTION.get(), clickedPos);
-            notify(level, player, "carwinch.rope.selected");
+            notify(player, "carwinch.rope.selected");
             return InteractionResult.SUCCESS;
         }
 
         // Повторный клик по той же точке - отмена.
         if (firstPos.equals(clickedPos)) {
             clearSelection(stack);
-            notify(level, player, "carwinch.rope.cleared");
-            return InteractionResult.SUCCESS;
-        }
-
-        if (level.isClientSide) {
-            clearSelection(stack);
+            notify(player, "carwinch.rope.cleared");
             return InteractionResult.SUCCESS;
         }
 
@@ -125,8 +136,8 @@ public class IronRopeItem extends Item {
             if (player != null && !player.hasInfiniteMaterials()) {
                 stack.shrink(1);
             }
-        } else if (player != null) {
-            player.displayClientMessage(Component.translatable("carwinch.rope.failed"), true);
+        } else {
+            notify(player, "carwinch.rope.failed");
         }
 
         return InteractionResult.SUCCESS;
