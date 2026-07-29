@@ -3,12 +3,14 @@ package dev.danzy.carwinch.content.winch;
 import com.mojang.serialization.MapCodec;
 import com.simibubi.create.content.equipment.wrench.IWrenchable;
 import com.simibubi.create.foundation.block.IBE;
+import dev.danzy.carwinch.content.rope.CarWinchRopeHelper;
 import dev.danzy.carwinch.registry.CWBlockEntities;
 import dev.ryanhcode.sable.api.block.BlockSubLevelAssemblyListener;
 import dev.ryanhcode.sable.api.block.BlockSubLevelCollisionShape;
 import dev.simulated_team.simulated.content.blocks.rope.RopeHolderBlock;
 import dev.simulated_team.simulated.index.SimTags;
 import net.minecraft.core.Direction;
+import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.ItemInteractionResult;
@@ -203,15 +205,33 @@ public class CarWinchBlock extends Block
             final InteractionHand hand,
             final BlockHitResult hitResult
     ) {
+        /*
+         * Обычной верёвкой Simulated лебёдку с фаркопом соединять нельзя,
+         * только стальным тросом. Клик гасим и на клиенте, иначе RopeItem
+         * успеет запомнить точку в своём дата-компоненте.
+         */
+        if (CarWinchRopeHelper.isPlainRope(stack)) {
+            if (!level.isClientSide() && player != null) {
+                player.displayClientMessage(
+                        Component.translatable("carwinch.rope.wrong_item"),
+                        true
+                );
+            }
+
+            return ItemInteractionResult.SUCCESS;
+        }
+
+        /*
+         * Ножницы. Своя реализация вместо RopeHolderBlock.shearRope,
+         * чтобы выпадал стальной трос, а не верёвка Simulated.
+         */
         if (!level.isClientSide()
                 && stack.is(SimTags.Items.DESTROYS_ROPE)
                 && player instanceof ServerPlayer serverPlayer) {
-            return RopeHolderBlock.shearRope(
-                    this,
-                    level,
-                    pos,
-                    serverPlayer
-            );
+
+            return CarWinchRopeHelper.destroyRopeAndDropSteel(level, pos, serverPlayer)
+                    ? ItemInteractionResult.SUCCESS
+                    : ItemInteractionResult.FAIL;
         }
 
         return super.useItemOn(
@@ -233,6 +253,14 @@ public class CarWinchBlock extends Block
             final BlockState newState,
             final boolean movedByPiston
     ) {
+        /*
+         * Снимаем трос до IBE.onRemove: иначе Simulated разорвёт его сам
+         * и выкинет свою верёвку вместо стального троса.
+         */
+        if (!state.is(newState.getBlock())) {
+            CarWinchRopeHelper.destroyRopeAndDropSteel(level, pos, null);
+        }
+
         IBE.onRemove(state, level, pos, newState);
         super.onRemove(
                 state,

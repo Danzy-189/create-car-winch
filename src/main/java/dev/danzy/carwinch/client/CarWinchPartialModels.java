@@ -6,6 +6,7 @@ import net.minecraft.resources.ResourceLocation;
 
 public final class CarWinchPartialModels {
 
+    /** Сегмент троса, геометрия как у rope из Create: Aeronautics. */
     public static final PartialModel ROPE =
             PartialModel.of(
                     ResourceLocation.fromNamespaceAndPath(
@@ -14,11 +15,14 @@ public final class CarWinchPartialModels {
                     )
             );
 
-    /*
-     * Отдельного узла пока нет, поэтому используем ту же модель.
-     * Если позже сделаешь knot.json, поменяешь только эту строку.
-     */
-    public static final PartialModel ROPE_KNOT = ROPE;
+    /** Узел между сегментами, геометрия как у knot из Create: Aeronautics. */
+    public static final PartialModel ROPE_KNOT =
+            PartialModel.of(
+                    ResourceLocation.fromNamespaceAndPath(
+                            CarWinch.ID,
+                            "block/rope/knot"
+                    )
+            );
 
     private CarWinchPartialModels() {
     }
