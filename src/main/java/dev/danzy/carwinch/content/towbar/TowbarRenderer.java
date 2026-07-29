@@ -3,6 +3,9 @@ package dev.danzy.carwinch.content.towbar;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.simibubi.create.foundation.blockEntity.renderer.SafeBlockEntityRenderer;
 import dev.ryanhcode.sable.Sable;
+import dev.ryanhcode.sable.companion.math.Pose3dc;
+import dev.ryanhcode.sable.sublevel.ClientSubLevel;
+import dev.ryanhcode.sable.sublevel.SubLevel;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
@@ -20,16 +23,25 @@ import net.minecraft.world.level.block.state.properties.BlockStateProperties;
 import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 import org.joml.Quaternionf;
+import org.joml.Vector3d;
 import org.joml.Vector3f;
 
 /**
- * Рисует сцепку между двумя фаркопами как горизонтальный вал Create
- * фиксированной длины.
+ * Рисует сцепку между двумя фаркопами как вал Create.
  *
- * Берётся именно блок create:shaft с AXIS=X, поэтому вал выглядит и
- * текстурируется точно так же, как обычный вал в Create, и автоматически
- * подхватывает ресурспаки. Модель выкладывается сегментами по одному
- * блоку вдоль оси сцепки.
+ * Главная тонкость — система координат. Фаркоп на собранной
+ * конструкции рисуется внутри рендер-пространства своего sublevel,
+ * а второй фаркоп живёт в другом sublevel. Поэтому обе точки
+ * сначала переводятся в общее глобальное пространство, а затем
+ * возвращаются в рендер-пространство того sublevel, в котором
+ * рисуется сам блок. Без этого обратного преобразования вал
+ * уезжает в сторону на смещение конструкции и его не видно.
+ * Тот же приём использует рендерер троса.
+ *
+ * Берётся именно блок create:shaft, поэтому вал выглядит и
+ * текстурируется так же, как обычный вал в Create, и автоматически
+ * подхватывает ресурспаки. Модель выкладывается сегментами по
+ * одному блоку вдоль оси сцепки.
  */
 public class TowbarRenderer
         extends SafeBlockEntityRenderer<TowbarBlockEntity> {
@@ -39,6 +51,9 @@ public class TowbarRenderer
 
     /** Длина одного сегмента модели вала в блоках. */
     private static final double SEGMENT_LENGTH = 1.0D;
+
+    /** Короче этого направление вала не определить. */
+    private static final double MIN_RENDER_LENGTH = 0.05D;
 
     @Nullable
     private static BlockState cachedShaftState;
@@ -84,48 +99,74 @@ public class TowbarRenderer
             return;
         }
 
-        /*
-         * Точки крепления локальны для разных sublevel,
-         * поэтому обе переводим в мировую систему.
-         */
-        final Vec3 start = Sable.HELPER.projectOutOfSubLevel(
-                level,
-                blockEntity.getAttachmentPoint()
-        );
-
-        final Vec3 end = Sable.HELPER.projectOutOfSubLevel(
-                level,
-                target.getAttachmentPoint()
-        );
-
-        final Vec3 delta = end.subtract(start);
-
-        // Вал горизонтальный: вертикальную составляющую игнорируем.
-        final double horizontalLength =
-                Math.sqrt(delta.x * delta.x + delta.z * delta.z);
-
-        if (horizontalLength < 0.05D) {
-            return;
-        }
-
-        final Vector3f direction = new Vector3f(
-                (float) (delta.x / horizontalLength),
-                0.0F,
-                (float) (delta.z / horizontalLength)
-        );
-
         final BlockState shaftState = shaftState();
 
         if (shaftState == null) {
             return;
         }
 
+        /*
+         * Точки крепления локальны для разных sublevel,
+         * поэтому обе переводим в глобальное пространство.
+         */
+        final Vec3 globalStart = Sable.HELPER.projectOutOfSubLevel(
+                level,
+                blockEntity.getAttachmentPoint()
+        );
+
+        final Vec3 globalEnd = Sable.HELPER.projectOutOfSubLevel(
+                level,
+                target.getAttachmentPoint()
+        );
+
+        final Vector3d renderStart =
+                new Vector3d(globalStart.x, globalStart.y, globalStart.z);
+
+        final Vector3d renderEnd =
+                new Vector3d(globalEnd.x, globalEnd.y, globalEnd.z);
+
+        /*
+         * PoseStack уже стоит в рендер-пространстве sublevel этого блока,
+         * так что глобальные точки нужно вернуть в это же пространство.
+         */
+        final Pose3dc containingPose = containingRenderPose(blockEntity);
+
+        if (containingPose != null) {
+            containingPose.transformPositionInverse(renderStart);
+            containingPose.transformPositionInverse(renderEnd);
+        }
+
+        final Vector3d delta =
+                new Vector3d(renderEnd).sub(renderStart);
+
+        final double length = delta.length();
+
+        if (length < MIN_RENDER_LENGTH) {
+            return;
+        }
+
+        /*
+         * Направление берётся из уже преобразованных точек, поэтому вал
+         * следует за наклоном и поворотом конструкции автоматически.
+         * Горизонтальность самой сцепки обеспечивает констрейнт, а не рендер.
+         */
+        final Vector3f direction = new Vector3f(
+                (float) (delta.x / length),
+                (float) (delta.y / length),
+                (float) (delta.z / length)
+        );
+
         final BlockRenderDispatcher blockRenderer =
                 Minecraft.getInstance().getBlockRenderer();
 
-        final BlockPos lightPos = BlockPos.containing(start.x, start.y, start.z);
-
-        final int shaftLight = LevelRenderer.getLightColor(level, lightPos);
+        final int shaftLight = LevelRenderer.getLightColor(
+                level,
+                BlockPos.containing(
+                        globalStart.x,
+                        globalStart.y,
+                        globalStart.z
+                )
+        );
 
         // Renderer уже стоит в координатах блока, поэтому смещаемся относительно него.
         final BlockPos origin = blockEntity.getBlockPos();
@@ -133,18 +174,12 @@ public class TowbarRenderer
         poseStack.pushPose();
 
         poseStack.translate(
-                start.x - origin.getX(),
-                start.y - origin.getY(),
-                start.z - origin.getZ()
+                renderStart.x - origin.getX(),
+                renderStart.y - origin.getY(),
+                renderStart.z - origin.getZ()
         );
 
         poseStack.mulPose(rotationFromPositiveX(direction));
-
-        /*
-         * Длина всегда номинальная, а не фактическая: сцепка жёсткая,
-         * а физика удерживает фаркопы на этом же расстоянии.
-         */
-        final double length = blockEntity.getCouplingLength();
 
         final int fullSegments = (int) Math.floor(length / SEGMENT_LENGTH);
         final double remainder = length - fullSegments * SEGMENT_LENGTH;
@@ -176,6 +211,22 @@ public class TowbarRenderer
         }
 
         poseStack.popPose();
+    }
+
+    /**
+     * Рендер-поза sublevel, в котором находится блок,
+     * или null, если блок стоит в обычном мире.
+     */
+    @Nullable
+    private static Pose3dc containingRenderPose(
+            final TowbarBlockEntity blockEntity
+    ) {
+        final SubLevel subLevel =
+                Sable.HELPER.getContaining(blockEntity);
+
+        return subLevel instanceof ClientSubLevel clientSubLevel
+                ? clientSubLevel.renderPose()
+                : null;
     }
 
     private static void renderSegment(
@@ -240,7 +291,7 @@ public class TowbarRenderer
     }
 
     /**
-     * Поворот, переводящий +X в заданное горизонтальное направление.
+     * Поворот, переводящий +X в заданное направление.
      * Случай строго противоположного направления обрабатываем отдельно:
      * rotationTo на антипараллельных векторах неустойчив.
      */
