@@ -6,7 +6,7 @@ import dev.ryanhcode.sable.Sable;
 import dev.ryanhcode.sable.api.physics.PhysicsPipeline;
 import dev.ryanhcode.sable.api.physics.constraint.ConstraintJointAxis;
 import dev.ryanhcode.sable.api.physics.constraint.GenericConstraintConfiguration;
-import dev.ryanhcode.sable.api.physics.constraint.PhysicsConstraintHandle;
+import dev.ryanhcode.sable.api.physics.constraint.GenericConstraintHandle;
 import dev.ryanhcode.sable.api.sublevel.ServerSubLevelContainer;
 import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.sublevel.ServerSubLevel;
@@ -36,20 +36,52 @@ import java.util.List;
  *
  * Два фаркопа соединяются жёстким горизонтальным валом Create.
  *
- * Длина вала замеряется в момент соединения и дальше не меняется:
- * сцепка жёсткая, физика удерживает именно это расстояние. Допустимый
- * диапазон — от {@link #MIN_COUPLING_LENGTH} до {@link #MAX_COUPLING_LENGTH},
- * так что фаркопы можно ставить и вплотную, и в четырёх блоках
- * друг от друга. Телепорта sublevel нет: номинал равен фактическому
- * расстоянию на момент клика.
+ * <h2>Как это работает у настоящего прицепа</h2>
  *
- * Вал горизонтальный: перепад по высоте между точками крепления
- * не должен превышать {@link #MAX_VERTICAL_OFFSET}.
+ * У реальной сцепки есть <b>две</b> степени свободы по рысканью, а не одна:
+ * дышло (водило) висит на шаре тягача и вторым концом закреплено на
+ * поворотном узле прицепа. Поэтому при повороте события идут строго по
+ * очереди:
  *
- * Физически это generic-constraint Sable между двумя sublevel:
- * LINEAR_X/Y/Z и ANGULAR_Z заблокированы, ANGULAR_X/Y свободны, поэтому
- * прицеп поворачивает влево-вправо и складывается вверх-вниз, но не
- * прокручивается вокруг продольной оси вала.
+ * <ol>
+ *   <li>тягач поворачивает — шар уходит в сторону;</li>
+ *   <li>дышло <i>складывается</i> относительно тягача: сначала меняется
+ *       угол сцепки, прицеп пока едет прямо;</li>
+ *   <li>дышло тянет прицеп <i>вдоль себя</i>, и только тогда прицеп
+ *       доворачивает в сторону поворота, с запаздыванием и по меньшему
+ *       радиусу («срезает» траекторию).</li>
+ * </ol>
+ *
+ * Ключевой момент: через дышло с двумя шарнирами передаётся практически
+ * только продольная сила (тяга/сжатие). Оно почти не передаёт крутящий
+ * момент, поэтому прицеп нельзя «повернуть рулём» — его можно только
+ * тянуть.
+ *
+ * <h2>Как это сделано здесь</h2>
+ *
+ * Раньше вал был жёстко приварен ко второму фаркопу: якорь второго
+ * sublevel считался один раз при клике. Из-за этого курс прицепа был
+ * жёстко связан с направлением вала, прицеп доворачивал мгновенно вместе
+ * с тягачом и на поворотах «выламывался» вбок — того самого запаздывания
+ * не было.
+ *
+ * Теперь якорь второго тела пересчитывается каждый тик по фактическому
+ * направлению вала ({@link #refreshCouplingFrames()}). Физически это и
+ * есть дышло с шарнирами на обоих концах: точка сцепки всегда лежит на
+ * линии между фаркопами, вал свободно складывается влево-вправо, а прицеп
+ * получает тягу вдоль вала и доворачивает уже сам.
+ *
+ * Угловые оси больше не блокируются жёстко, вместо этого стоят упоры, как
+ * у настоящего шара: рысканье до {@link #JACKKNIFE_LIMIT} (складывание
+ * «в нож»), продольный перелом до {@link #PITCH_LIMIT}, крен относительно
+ * тягача до {@link #ROLL_LIMIT}. Жёсткая блокировка ANGULAR_Z при больших
+ * углах рысканья как раз и давала рывки.
+ *
+ * Длина вала замеряется в момент соединения и дальше не меняется
+ * (диапазон от {@link #MIN_COUPLING_LENGTH} до
+ * {@link #MAX_COUPLING_LENGTH}), но подтягивается к номиналу плавно, не
+ * более {@link #MAX_LENGTH_CORRECTION_PER_TICK} блока за тик — без этого
+ * любое расхождение выправлялось бы рывком.
  */
 public class TowbarBlockEntity extends SmartBlockEntity
         implements RopeStrandHolderBlockEntity {
@@ -62,6 +94,18 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
     /** Максимальный перепад по высоте: вал должен быть горизонтальным. */
     public static final double MAX_VERTICAL_OFFSET = 0.75D;
+
+    /** Предел складывания «в нож» по рысканью. */
+    private static final double JACKKNIFE_LIMIT = Math.toRadians(100.0D);
+
+    /** Предел перелома вала вверх-вниз. */
+    private static final double PITCH_LIMIT = Math.toRadians(25.0D);
+
+    /** Допустимый крен прицепа относительно тягача. */
+    private static final double ROLL_LIMIT = Math.toRadians(10.0D);
+
+    /** Насколько сильно длина вала подтягивается к номиналу за один тик. */
+    private static final double MAX_LENGTH_CORRECTION_PER_TICK = 0.15D;
 
     /** Пауза между попытками пересоздать констрейнт, в тиках. */
     private static final int CONSTRAINT_RETRY_INTERVAL = 20;
@@ -77,7 +121,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
     /** Замеренная в момент клика длина вала. */
     private double couplingLength;
 
-    private PhysicsConstraintHandle couplingConstraint;
+    private GenericConstraintHandle couplingConstraint;
 
     private int constraintAttempts;
     private int retryCooldown;
@@ -314,27 +358,40 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     /**
-     * Строит физический вал зафиксированной длины.
+     * Геометрия joint в локальных системах обоих sublevel.
      *
-     * Оба якоря описывают одну и ту же точку joint в мировой системе,
-     * но в локальных координатах разных sublevel. Якорь второго фаркопа
-     * сдвинут назад по оси вала ровно на запомненную длину, поэтому
-     * сцепка жёсткая и не растягивается со временем.
+     * @param anchorA точка сцепки на тягаче (его точка крепления)
+     * @param anchorB та же точка в локальных координатах прицепа:
+     *                его точка крепления, отодвинутая назад по
+     *                фактическому направлению вала на его длину
+     * @param frameA  ось вала в системе первого тела
+     * @param frameB  ось вала в системе второго тела
      */
-    private boolean createPhysicsConstraint() {
-        if (!couplingOwner
-                || couplingTarget == null
-                || !(level instanceof ServerLevel serverLevel)) {
-            return false;
-        }
+    private record JointFrames(
+            Vector3d anchorA,
+            Vector3d anchorB,
+            Quaterniond frameA,
+            Quaterniond frameB
+    ) {
+    }
 
-        final TowbarBlockEntity target =
-                getTowbar(serverLevel, couplingTarget);
-
-        if (target == null) {
-            return false;
-        }
-
+    /**
+     * Считает геометрию дышла по текущему положению обоих фаркопов.
+     *
+     * Именно здесь и живёт поведение настоящей сцепки: точка joint всегда
+     * лежит на линии между фаркопами, то есть дышло свободно
+     * переориентируется относительно прицепа и передаёт ему тягу вдоль
+     * себя, а не разворачивает его насильно.
+     *
+     * @param smooth если true, длина подтягивается к номиналу постепенно;
+     *               при создании констрейнта берётся точный номинал
+     */
+    @Nullable
+    private JointFrames computeJointFrames(
+            final ServerLevel serverLevel,
+            final TowbarBlockEntity target,
+            final boolean smooth
+    ) {
         final Vec3 localA = getAttachmentPoint();
         final Vec3 localB = target.getAttachmentPoint();
 
@@ -347,7 +404,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
         if (subLevelA == null
                 || subLevelB == null
                 || subLevelA == subLevelB) {
-            return false;
+            return null;
         }
 
         final Vec3 globalA =
@@ -364,22 +421,21 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         globalB.z - globalA.z
                 );
 
-        if (worldDirection.lengthSquared()
-                < MIN_COUPLING_LENGTH * MIN_COUPLING_LENGTH) {
-            return false;
+        final double actualLength = worldDirection.length();
+
+        if (actualLength < MIN_COUPLING_LENGTH) {
+            return null;
         }
 
-        worldDirection.normalize();
+        worldDirection.div(actualLength);
 
         /*
          * Если длина потерялась (например, мир из старой версии),
          * замеряем её заново и запоминаем.
          */
         if (couplingLength < MIN_COUPLING_LENGTH) {
-            couplingLength = Math.min(
-                    horizontalLength(globalB.subtract(globalA)),
-                    MAX_COUPLING_LENGTH
-            );
+            couplingLength =
+                    Math.min(actualLength, MAX_COUPLING_LENGTH);
 
             target.couplingLength = couplingLength;
 
@@ -387,28 +443,50 @@ public class TowbarBlockEntity extends SmartBlockEntity
             target.markUpdated();
         }
 
-        final Vector3d localAnchorA =
+        /*
+         * Плавное подтягивание к номиналу: рывками сцепку не выправляем,
+         * иначе прицеп дёргает при каждом расхождении.
+         */
+        double effectiveLength = couplingLength;
+
+        if (smooth) {
+            final double delta = couplingLength - actualLength;
+
+            final double clamped =
+                    Math.max(
+                            -MAX_LENGTH_CORRECTION_PER_TICK,
+                            Math.min(
+                                    MAX_LENGTH_CORRECTION_PER_TICK,
+                                    delta
+                            )
+                    );
+
+            effectiveLength = actualLength + clamped;
+        }
+
+        final Vector3d anchorA =
                 new Vector3d(localA.x, localA.y, localA.z);
 
         /*
-         * Точка второго тела, которая должна совпасть с якорем первого:
-         * его точка крепления, отодвинутая назад по оси вала на
-         * запомненную длину. Именно это и держит дистанцию постоянной.
+         * Точка второго тела, которая должна совпасть с точкой сцепки:
+         * его точка крепления, отодвинутая назад по ФАКТИЧЕСКОМУ
+         * направлению вала. Пересчёт каждый тик и есть второй шарнир.
          */
         final Vector3d worldAnchorB =
                 new Vector3d(
-                        globalB.x - worldDirection.x * couplingLength,
+                        globalB.x - worldDirection.x * effectiveLength,
                         globalB.y,
-                        globalB.z - worldDirection.z * couplingLength
+                        globalB.z - worldDirection.z * effectiveLength
                 );
 
-        final Vector3d localAnchorB =
+        final Vector3d anchorB =
                 subLevelB.logicalPose()
                         .transformPositionInverse(worldAnchorB);
 
         /*
          * Продольная ось вала в локальных системах обоих sublevel.
-         * Frame строится от +Z, как ожидает generic constraint.
+         * Frame строится от +Z, как ожидает generic constraint:
+         * Z — вдоль вала (крен), Y — вверх (рысканье), X — поперёк (перелом).
          */
         final Vector3d localDirectionA =
                 subLevelA.logicalPose()
@@ -434,17 +512,46 @@ public class TowbarBlockEntity extends SmartBlockEntity
                         localDirectionB
                 );
 
+        return new JointFrames(anchorA, anchorB, frameA, frameB);
+    }
+
+    /**
+     * Строит дышло: шаровой joint в точке сцепки.
+     *
+     * Заблокированы только линейные оси — это и есть шар. Углы держатся
+     * не блокировкой, а упорами, как в настоящей сцепке.
+     */
+    private boolean createPhysicsConstraint() {
+        if (!couplingOwner
+                || couplingTarget == null
+                || !(level instanceof ServerLevel serverLevel)) {
+            return false;
+        }
+
+        final TowbarBlockEntity target =
+                getTowbar(serverLevel, couplingTarget);
+
+        if (target == null) {
+            return false;
+        }
+
+        final JointFrames frames =
+                computeJointFrames(serverLevel, target, false);
+
+        if (frames == null) {
+            return false;
+        }
+
         final GenericConstraintConfiguration configuration =
                 new GenericConstraintConfiguration(
-                        localAnchorA,
-                        localAnchorB,
-                        frameA,
-                        frameB,
+                        frames.anchorA(),
+                        frames.anchorB(),
+                        frames.frameA(),
+                        frames.frameB(),
                         EnumSet.of(
                                 ConstraintJointAxis.LINEAR_X,
                                 ConstraintJointAxis.LINEAR_Y,
-                                ConstraintJointAxis.LINEAR_Z,
-                                ConstraintJointAxis.ANGULAR_Z
+                                ConstraintJointAxis.LINEAR_Z
                         )
                 );
 
@@ -465,8 +572,8 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         couplingConstraint =
                 pipeline.addConstraint(
-                        subLevelA,
-                        subLevelB,
+                        subLevelOf(serverLevel, this),
+                        subLevelOf(serverLevel, target),
                         configuration
                 );
 
@@ -481,8 +588,107 @@ public class TowbarBlockEntity extends SmartBlockEntity
             return false;
         }
 
+        applyJointLimits();
+
         resetRetryState();
         return true;
+    }
+
+    @Nullable
+    private static ServerSubLevel subLevelOf(
+            final ServerLevel serverLevel,
+            final TowbarBlockEntity towbar
+    ) {
+        return getContainingSubLevel(
+                serverLevel,
+                towbar.getAttachmentPoint()
+        );
+    }
+
+    /**
+     * Упоры шара вместо жёстких блокировок.
+     *
+     * Рысканье свободно почти до складывания «в нож», перелом вверх-вниз
+     * ограничен, крен относительно тягача почти запрещён — но всё это
+     * мягкие упоры, поэтому на больших углах поворота сцепку не рвёт
+     * рывками, как при жёсткой блокировке ANGULAR_Z.
+     */
+    private void applyJointLimits() {
+        if (couplingConstraint == null || !couplingConstraint.isValid()) {
+            return;
+        }
+
+        try {
+            couplingConstraint.setLimit(
+                    ConstraintJointAxis.ANGULAR_Y,
+                    -JACKKNIFE_LIMIT,
+                    JACKKNIFE_LIMIT
+            );
+
+            couplingConstraint.setLimit(
+                    ConstraintJointAxis.ANGULAR_X,
+                    -PITCH_LIMIT,
+                    PITCH_LIMIT
+            );
+
+            couplingConstraint.setLimit(
+                    ConstraintJointAxis.ANGULAR_Z,
+                    -ROLL_LIMIT,
+                    ROLL_LIMIT
+            );
+        } catch (final RuntimeException ignored) {
+            /*
+             * Если сборка физики не поддерживает упоры на свободных осях,
+             * сцепка всё равно работает как шар — просто без ограничителей.
+             */
+        }
+    }
+
+    /**
+     * Пересчитывает якоря дышла по фактическому положению фаркопов.
+     *
+     * Это и есть второй шарнир: вал каждый тик заново «нацеливается» на
+     * шар тягача, поэтому при повороте сначала складывается сцепка, а
+     * прицеп доворачивает только под действием тяги вдоль вала.
+     */
+    private void refreshCouplingFrames() {
+        if (couplingConstraint == null
+                || !couplingConstraint.isValid()
+                || couplingTarget == null
+                || !(level instanceof ServerLevel serverLevel)) {
+            return;
+        }
+
+        final TowbarBlockEntity target =
+                getTowbar(serverLevel, couplingTarget);
+
+        if (target == null) {
+            return;
+        }
+
+        final JointFrames frames =
+                computeJointFrames(serverLevel, target, true);
+
+        if (frames == null) {
+            return;
+        }
+
+        try {
+            couplingConstraint.setFrame1(
+                    frames.anchorA(),
+                    frames.frameA()
+            );
+
+            couplingConstraint.setFrame2(
+                    frames.anchorB(),
+                    frames.frameB()
+            );
+        } catch (final RuntimeException ignored) {
+            /*
+             * Констрейнт мог быть снят движком между проверкой и вызовом;
+             * в следующем тике он пересоздастся.
+             */
+        }
     }
 
     @Nullable
@@ -594,6 +800,9 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         if (couplingConstraint != null && couplingConstraint.isValid()) {
             constraintAttempts = 0;
+
+            // Дышло «нацеливается» на шар тягача каждый тик.
+            refreshCouplingFrames();
             return;
         }
 
