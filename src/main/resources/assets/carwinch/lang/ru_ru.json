@@ -10,9 +10,17 @@
   "carwinch.rope.cleared": "Выбор сброшен",
   "carwinch.rope.occupied": "К этой точке уже привязан трос",
   "carwinch.rope.failed": "Не удалось привязать трос: слишком далеко или неверная пара лебёдок",
-  "carwinch.coupling.tooltip": "ПКМ по двум фаркопам, чтобы соединить их",
+  "carwinch.coupling.tooltip": "ПКМ по двум фаркопам, чтобы соединить их жёстким валом",
+  "carwinch.coupling.tooltip.length": "Длина вала: %s блока",
+  "carwinch.coupling.tooltip.anchored": "Первый фаркоп: %s, %s, %s",
   "carwinch.coupling.selected": "Фаркоп выбран, теперь выбери второй",
   "carwinch.coupling.cleared": "Выбор сцепки сброшен",
   "carwinch.coupling.occupied": "Этот фаркоп уже соединён",
-  "carwinch.coupling.failed": "Не удалось соединить фаркопы"
+  "carwinch.coupling.failed": "Не удалось соединить фаркопы",
+  "carwinch.coupling.failed.same": "Нужны два разных фаркопа",
+  "carwinch.coupling.failed.horizontal": "Вал должен быть горизонтальным: фаркопы на разной высоте",
+  "carwinch.coupling.failed.length": "Неверное расстояние: между фаркопами должно быть около 2 блоков",
+  "carwinch.coupling.failed.contraption": "Оба фаркопа должны стоять на собранных конструкциях",
+  "carwinch.coupling.failed.same_contraption": "Оба фаркопа на одной и той же конструкции",
+  "carwinch.coupling.failed.physics": "Физика отказалась создать сцепку"
 }
