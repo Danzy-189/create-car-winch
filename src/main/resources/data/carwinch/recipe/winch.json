@@ -1,17 +1,23 @@
 {
   "type": "minecraft:crafting_shaped",
-  "category": "misc",
+  "category": "redstone",
   "pattern": [
-    "III",
-    "ICI",
-    "III"
+    " C ",
+    "SAS",
+    " G "
   ],
   "key": {
-    "I": {
-      "item": "minecraft:iron_ingot"
-    },
     "C": {
-      "item": "minecraft:chain"
+      "item": "create:cogwheel"
+    },
+    "S": {
+      "item": "create:iron_sheet"
+    },
+    "A": {
+      "item": "create:andesite_casing"
+    },
+    "G": {
+      "item": "create:shaft"
     }
   },
   "result": {
