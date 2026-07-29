@@ -1,9 +1,10 @@
 {
-  "credit": "Geometry based on simulated:block/rope/knot (Create: Aeronautics), steel texture",
+  "credit": "Geometry based on simulated:block/rope/knot (Create: Aeronautics), industrial iron texture",
   "parent": "minecraft:block/block",
   "textures": {
-    "1": "minecraft:block/iron_block",
-    "particle": "minecraft:block/iron_block"
+    "1": "create:block/industrial_iron_block",
+    "2": "create:block/industrial_iron_block_top",
+    "particle": "create:block/industrial_iron_block"
   },
   "elements": [
     {
@@ -14,8 +15,8 @@
         "east": {"uv": [6, 6, 10, 10], "texture": "#1"},
         "south": {"uv": [6, 6, 10, 10], "texture": "#1"},
         "west": {"uv": [6, 6, 10, 10], "texture": "#1"},
-        "up": {"uv": [6, 6, 10, 10], "texture": "#1"},
-        "down": {"uv": [6, 6, 10, 10], "texture": "#1"}
+        "up": {"uv": [6, 6, 10, 10], "texture": "#2"},
+        "down": {"uv": [6, 6, 10, 10], "texture": "#2"}
       }
     }
   ]
