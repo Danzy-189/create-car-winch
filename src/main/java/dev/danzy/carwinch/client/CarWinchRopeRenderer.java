@@ -29,12 +29,11 @@ import java.util.List;
 public final class CarWinchRopeRenderer {
 
     /**
-     * Серый металлический оттенок троса.
-     * Модели rope и knot берут текстуру железа, а тинт добавляет ей
-     * чуть более тёмный стальной тон, чтобы трос не выглядел как
-     * белый шнур.
+     * Модели rope и knot используют текстуру
+     * create:block/industrial_iron_block, которая уже серая и
+     * металлическая, поэтому тинт нейтральный и не искажает цвет.
      */
-    private static final int STEEL_TINT = 0xC2C6CC;
+    private static final int STEEL_TINT = 0xFFFFFF;
 
     private CarWinchRopeRenderer() {
     }
