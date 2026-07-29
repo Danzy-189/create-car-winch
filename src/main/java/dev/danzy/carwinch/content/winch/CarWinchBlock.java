@@ -1,6 +1,7 @@
 package dev.danzy.carwinch.content.winch;
 
 import com.mojang.serialization.MapCodec;
+import com.simibubi.create.content.equipment.wrench.IWrenchable;
 import com.simibubi.create.foundation.block.IBE;
 import dev.danzy.carwinch.registry.CWBlockEntities;
 import dev.ryanhcode.sable.api.block.BlockSubLevelAssemblyListener;
@@ -32,7 +33,10 @@ import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 
 public class CarWinchBlock extends Block
-        implements RopeHolderBlock, BlockSubLevelAssemblyListener, BlockSubLevelCollisionShape {
+        implements RopeHolderBlock,
+        BlockSubLevelAssemblyListener,
+        BlockSubLevelCollisionShape,
+        IWrenchable {
 
     public static final MapCodec<CarWinchBlock> CODEC =
             simpleCodec(CarWinchBlock::new);
@@ -105,6 +109,25 @@ public class CarWinchBlock extends Block
                                 context.getClickedPos()
                         )
                 );
+    }
+
+    /**
+     * Поворот гаечным ключом Create.
+     * <p>
+     * Стандартная реализация IWrenchable умеет крутить горизонтальное
+     * направление только при клике сверху или снизу, по боковым граням
+     * она вернёт состояние без изменений. Лебёдка всегда горизонтальная,
+     * поэтому крутим её по часовой вокруг вертикальной оси при любом клике.
+     */
+    @Override
+    public BlockState getRotatedBlockState(
+            final BlockState originalState,
+            final Direction targetedFace
+    ) {
+        return originalState.setValue(
+                FACING,
+                originalState.getValue(FACING).getClockWise()
+        );
     }
 
     @Override
