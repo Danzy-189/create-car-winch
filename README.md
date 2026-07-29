@@ -1,15 +1,18 @@
-# Create: Car Winch
+# Create: Tow & Haul
 
 A NeoForge addon for **Create: Aeronautics / Create: Simulated** (Minecraft 1.21.1).
 
-Adds three things:
+Towing gear for physics vehicles:
 
 - a redstone driven **car winch** that reels a real physics rope in and out,
 - a **tow bar** that the rope hooks onto,
-- a **coupling** that links two tow bars with a rigid, fixed length Create shaft.
+- a **coupling** that links two tow bars with a rigid Create shaft, turning them into a drawbar.
 
 The rope is Simulated's own `ServerRopeStrand`, the exact same one the Aeronautics rope winch
 uses. The coupling is a Sable physics constraint between two sub-levels.
+
+> The mod id is still `carwinch`, so every blockstate, model, lang key, recipe and existing world
+> keeps working. Only the display name changed.
 
 ## Winch and rope
 
@@ -19,7 +22,12 @@ uses. The coupling is a Sable physics constraint between two sub-levels.
    Sneak + right click cancels the selection.
 3. The winch swaps to its spooled model, the tow bar swaps to its hooked model, and a physics
    rope appears between them.
-4. Shears (anything in Simulated's `destroys_rope` tag) cut the rope and return the item.
+4. Shears (anything in Simulated's `destroys_rope` tag) cut the rope. Breaking either end block
+   does the same. Both give back the **Steel Rope**, never vanilla rope.
+
+Plain vanilla rope is rejected with a message: winch and tow bar only accept the steel rope.
+Winch-to-tow-bar is the only valid pair - two tow bars cannot be roped together, that is what the
+coupling is for.
 
 ### Redstone control
 
@@ -35,40 +43,55 @@ The winch reads the two vertical sides separately, so one block can both pull an
 Tuning constants live in `CarWinchBlockEntity`: `MAX_RANGE`, `REEL_SPEED`, `RELEASE_SPEED`,
 `PAYOUT_SPEED`, `SLACK_TOLERANCE`.
 
-## Coupling: a fixed length Create shaft
+## Coupling: a rigid Create shaft
 
 Two tow bars can be joined by a **rigid horizontal shaft** instead of a rope.
 
-1. Park the two contraptions so their tow bars are roughly **2 blocks apart** and at the
-   **same height**.
-2. Right click the first tow bar with a **Coupling**, then the second one.
-   A `create:shaft` appears between them, laid out as one-block segments along the axis.
-3. Sneak + **Create wrench** on either tow bar takes the coupling apart.
+1. Park the two contraptions so their tow bars face each other, **up to 4 blocks apart**.
+2. Right click with a **Coupling** on the tow bar of the **towing vehicle first**, then on the one
+   on the **trailer**. The first click is the ball side.
+   A `create:shaft` is drawn between the two live hitch points as one-block segments.
+3. **Create wrench** on either tow bar takes the coupling apart. Sneak + wrench rotates the block,
+   plain wrench click rotates it too when it is not coupled.
 
 How it behaves physically:
 
-- Length is **always the nominal 2 blocks** (`TowbarBlockEntity.COUPLING_LENGTH`). The anchor of
-  the second body is derived from that constant, not from the distance at the moment you clicked,
-  so the shaft never stretches or shrinks.
-- Because coupling is only allowed when the tow bars are already close to the nominal distance
-  (`COUPLING_LENGTH_TOLERANCE`), nothing gets teleported when the constraint snaps in.
-- The joint locks `LINEAR_X/Y/Z` and `ANGULAR_Z` and leaves `ANGULAR_X/Y` free: the trailer
-  steers left and right and pitches up and down, but does not roll around the shaft axis.
-- The shaft must be horizontal - a height difference above `MAX_VERTICAL_OFFSET` is rejected.
+- Length is **measured at the moment you click** and then held fixed (`couplingLength`, capped by
+  `MAX_COUPLING_LENGTH = 4.0`, floored by `MIN_COUPLING_LENGTH = 0.05`). Nothing gets teleported
+  when the constraint snaps in, and the shaft never stretches afterwards.
+- Frames and anchors come from the two blocks' own `FACING`, not from the direction you happened to
+  be standing in, so the shaft aligns itself to the hitches instead of freezing in the pose it was
+  created in.
+- A height difference between the two hitches is **baked into the anchor** (`couplingHeightOffset`,
+  up to `MAX_VERTICAL_OFFSET = 1.5`) instead of being left for the solver to remove. Without this
+  the solver lifts the bodies and wheels leave the ground.
+- The joint locks **only** `LINEAR_X/Y/Z`. All three angular axes are free and there are no
+  `setLimit` stops, so the coupling is a pure ball joint: the trailer steers, pitches on hills and
+  rolls a full 360 degrees without dragging the towing vehicle's orientation with it. Locking any
+  angular axis stitches the two sub-levels' attitudes together, which lifts wheels on slopes and
+  generates roll-over torque in turns.
 - Both tow bars must sit on **different** assembled contraptions; two tow bars on the same
   contraption cannot be coupled.
-- The coupling is stored in NBT. If the constraint becomes invalid (chunk reload, contraption
-  reassembly) it is recreated, with a cooldown between attempts and a cap on how many times it
-  tries before giving up and releasing.
+- The coupling is stored in NBT (`CouplingTarget`, `CouplingOwner`, `CouplingLength`,
+  `CouplingHeight`). If the constraint becomes invalid (chunk reload, contraption reassembly) it is
+  recreated, with a cooldown between attempts and a cap on how many times it tries before giving up
+  and releasing. A sanity watchdog releases the coupling if the bodies end up impossibly far apart,
+  so a broken constraint can never fling a sub-level across the world.
 
-Every rejection tells you exactly why: wrong distance, not horizontal, not on a contraption,
+Every rejection tells you exactly why: too far, too close, not horizontal, not on a contraption,
 same contraption, or physics refused.
 
-## Dropping in your art
+## Art
 
-The repo ships **placeholder** cube models and textures so it compiles and runs out of the box.
-Minecraft cannot read `.bbmodel`, so in Blockbench use **File -> Export -> Block/Item Model**
-and save over these paths:
+- The tow bar uses `rope_connector` geometry adapted from Simulated, oriented vertically.
+- The rope strand is drawn by this mod's own renderer from `knot` and `rope` partial models that
+  reference Create's `industrial_iron_block` textures, so it reads as steel rather than hemp.
+- The coupling itself needs no model of its own - it is rendered as Create's shaft block via
+  `CachedBuffers.block(KINETIC_BLOCK, state)`. Note that `renderSingleBlock` draws nothing for
+  Create kinetic blocks, which is why the cached-buffer path is used.
+
+If you want to replace the block models, export from Blockbench with **File -> Export ->
+Block/Item Model** over these paths:
 
 | Blockbench file | Export to |
 | --- | --- |
@@ -79,21 +102,8 @@ and save over these paths:
 
 The `_1` variants are the *hooked* / *spooled* states. `tools/import_models.sh` warns if a variant
 is byte identical to its base model, because then the state change is invisible in game.
-The coupling itself needs no model - it is rendered as Create's own shaft block.
-
-Textures (overwrite the placeholders, keep the names):
-
-```
-assets/carwinch/textures/block/winch.png
-assets/carwinch/textures/block/winch_drum.png
-assets/carwinch/textures/block/towbar.png
-assets/carwinch/textures/block/winch_hook.png
-assets/carwinch/textures/item/iron_rope.png
-```
-
-Models are authored pointing **up**; `blockstates/winch.json` and `blockstates/towbar.json`
-rotate them for the other five facings. If your models point north instead, change the
-`x`/`y` rotations in those two files.
+Models are authored pointing **up**; `blockstates/winch.json` and `blockstates/towbar.json` rotate
+them for the other five facings.
 
 ## Building the jar
 
@@ -140,7 +150,8 @@ Bump these in `gradle.properties` if the upstream stack moves.
 
 ## Known gaps
 
-- The rope strand is drawn by Simulated's own renderer, so it uses Create's rope texture rather
-  than a steel one. A custom look needs a Mixin over that renderer.
-- `towbar_1.json` still needs real hooked-state art; right now it is a placeholder.
+- `towbar_1.json` (hooked state) is still identical to the base model, so the hooked state is not
+  visually distinct.
 - No Ponder scene or JEI integration yet.
+- With all angular axes free, a badly balanced trailer can sway at speed. Damping would have to be
+  added as a soft torque, never as an axis lock.
