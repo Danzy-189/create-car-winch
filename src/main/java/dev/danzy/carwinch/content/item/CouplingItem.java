@@ -20,9 +20,10 @@ import org.jetbrains.annotations.Nullable;
 import java.util.List;
 
 /**
- * Сцепка: жёсткий вал Create фиксированной длины между двумя фаркопами.
+ * Сцепка: жёсткий горизонтальный вал Create между двумя фаркопами.
  *
  * Первый клик выбирает фаркоп, второй ставит вал. Shift + ПКМ сбрасывает выбор.
+ * Длина замеряется в момент соединения и дальше держится жёстко.
  * Вся логика серверная, поэтому дата-компонент не расходится с клиентом,
  * а причина отказа всегда показывается игроку.
  */
@@ -153,7 +154,7 @@ public class CouplingItem extends Item {
         tooltip.add(
                 Component.translatable(
                         "carwinch.coupling.tooltip.length",
-                        String.valueOf(TowbarBlockEntity.COUPLING_LENGTH)
+                        String.valueOf(TowbarBlockEntity.MAX_COUPLING_LENGTH)
                 ).withStyle(ChatFormatting.DARK_GRAY)
         );
 
