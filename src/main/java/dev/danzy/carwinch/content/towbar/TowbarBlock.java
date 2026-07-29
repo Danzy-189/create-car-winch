@@ -174,26 +174,24 @@ public class TowbarBlock extends Block
             final InteractionHand hand,
             final BlockHitResult hitResult
     ) {
-        if (level.isClientSide) {
-            return super.useItemOn(
-                    stack,
-                    state,
-                    level,
-                    pos,
-                    player,
-                    hand,
-                    hitResult
-            );
-        }
-
         final Item wrench = wrench();
+        final boolean wrenchInHand = wrench != null && stack.is(wrench);
 
-        // Shift + гаечный ключ - разобрать вал-сцепку.
-        if (wrench != null
-                && player.isShiftKeyDown()
-                && stack.is(wrench)
+        /*
+         * ПКМ гаечным ключом Create по фаркопу разбирает вал-сцепку.
+         * Shift больше не нужен, но и с ним работает точно так же.
+         *
+         * Важно перехватить клик и на клиенте: если вернуть PASS, ванильная
+         * логика пропустит дальше сам ключ и тот провернёт блок вместо
+         * снятия сцепки.
+         */
+        if (wrenchInHand
                 && level.getBlockEntity(pos) instanceof TowbarBlockEntity towbar
                 && towbar.isCoupled()) {
+
+            if (level.isClientSide) {
+                return ItemInteractionResult.SUCCESS;
+            }
 
             TowbarBlockEntity.detachCoupling(level, pos);
 
@@ -207,6 +205,18 @@ public class TowbarBlock extends Block
             );
 
             return ItemInteractionResult.SUCCESS;
+        }
+
+        if (level.isClientSide) {
+            return super.useItemOn(
+                    stack,
+                    state,
+                    level,
+                    pos,
+                    player,
+                    hand,
+                    hitResult
+            );
         }
 
         /*
