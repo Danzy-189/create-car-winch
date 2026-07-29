@@ -515,6 +515,11 @@ public class TowbarBlockEntity extends SmartBlockEntity
         second.markUpdated();
     }
 
+    /**
+     * Хук Create: вызывается из финального SmartBlockEntity#setRemoved,
+     * поэтому переопределять setRemoved нельзя и не нужно.
+     * detachCoupling внутри снимает и физический констрейнт.
+     */
     @Override
     public void remove() {
         detachCoupling();
@@ -522,17 +527,11 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     /**
-     * Вызывается и при разрушении блока, и при выгрузке чанка.
-     * Данные сцепки не трогаем: их чистит onRemove блока и detachCoupling.
-     * Здесь важно только отпустить хэндл, иначе констрейнт остаётся
-     * висеть в физическом пайплайне.
+     * При выгрузке чанка блок никуда не делся, поэтому данные сцепки
+     * сохраняются, а освобождается только хэндл констрейнта:
+     * иначе он остаётся висеть в физическом пайплайне. При загрузке
+     * констрейнт пересоздаётся в tick().
      */
-    @Override
-    public void setRemoved() {
-        removePhysicsConstraint();
-        super.setRemoved();
-    }
-
     @Override
     public void onChunkUnloaded() {
         removePhysicsConstraint();
