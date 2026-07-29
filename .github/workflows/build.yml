@@ -16,7 +16,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
-          cache: gradle
+      # Кеш Gradle обслуживает setup-gradle, поэтому cache: gradle в setup-java убран:
+      # два механизма кеширования мешали друг другу.
       - name: Install Gradle 8.12
         uses: gradle/actions/setup-gradle@v4
         with:
@@ -24,11 +25,10 @@ jobs:
       - name: Import Blockbench models and textures
         run: bash tools/import_models.sh
       - name: Build jar
-        run: gradle build --stacktrace
+        run: gradle build --stacktrace --no-daemon
       - name: Upload jar
         uses: actions/upload-artifact@v4
         with:
           name: create-car-winch-jar
           path: build/libs/*.jar
           if-no-files-found: error
-
