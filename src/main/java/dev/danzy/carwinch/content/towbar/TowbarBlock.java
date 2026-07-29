@@ -1,6 +1,7 @@
 package dev.danzy.carwinch.content.towbar;
 
 import com.mojang.serialization.MapCodec;
+import com.simibubi.create.content.equipment.wrench.IWrenchable;
 import com.simibubi.create.foundation.block.IBE;
 import dev.danzy.carwinch.registry.CWBlockEntities;
 import dev.ryanhcode.sable.api.block.BlockSubLevelAssemblyListener;
@@ -41,7 +42,8 @@ import org.jetbrains.annotations.Nullable;
 public class TowbarBlock extends Block
         implements RopeHolderBlock,
         BlockSubLevelAssemblyListener,
-        BlockSubLevelCollisionShape {
+        BlockSubLevelCollisionShape,
+        IWrenchable {
 
     public static final MapCodec<TowbarBlock> CODEC =
             simpleCodec(TowbarBlock::new);
@@ -107,6 +109,26 @@ public class TowbarBlock extends Block
                         context.getHorizontalDirection().getOpposite()
                 )
                 .setValue(HOOKED, false);
+    }
+
+    /**
+     * Поворот гаечным ключом Create. Фаркоп всегда горизонтальный,
+     * поэтому вращаем его по часовой вокруг вертикальной оси независимо
+     * от того, по какой грани щёлкнули. Если сцепка собрана, сюда вообще
+     * не дойдёт: клик перехватывает useItemOn и снимает вал.
+     */
+    @Override
+    public BlockState getRotatedBlockState(
+            final BlockState originalState,
+            final Direction targetedFace
+    ) {
+        final Direction facing = originalState.getValue(FACING);
+
+        if (facing.getAxis().isVertical()) {
+            return originalState.setValue(FACING, Direction.NORTH);
+        }
+
+        return originalState.setValue(FACING, facing.getClockWise());
     }
 
     @Override
@@ -181,9 +203,8 @@ public class TowbarBlock extends Block
          * ПКМ гаечным ключом Create по фаркопу разбирает вал-сцепку.
          * Shift больше не нужен, но и с ним работает точно так же.
          *
-         * Важно перехватить клик и на клиенте: если вернуть PASS, ванильная
-         * логика пропустит дальше сам ключ и тот провернёт блок вместо
-         * снятия сцепки.
+         * Важно перехватить клик и на клиенте: если вернуть PASS, дальше
+         * сработает сам ключ и провернёт блок вместо снятия сцепки.
          */
         if (wrenchInHand
                 && level.getBlockEntity(pos) instanceof TowbarBlockEntity towbar
