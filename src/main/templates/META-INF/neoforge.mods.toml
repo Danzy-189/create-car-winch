@@ -9,8 +9,8 @@ displayName = "${mod_name}"
 authors = "${mod_authors}"
 logoFile = "carwinch.png"
 description = '''
-A Create: Aeronautics / Simulated addon that adds a redstone driven car winch, a tow bar and a steel rope.
-Hitch the winch to a tow bar with the steel rope and power the winch to reel physics contraptions in.
+A Create: Aeronautics / Simulated addon that adds towing gear for physics vehicles: a redstone driven winch, a steel rope and a tow bar.
+Hitch the winch to a tow bar with the steel rope and power the winch to reel contraptions in, or link two tow bars with the coupling to get a rigid drawbar and tow a trailer.
 '''
 
 [[dependencies.${mod_id}]]
