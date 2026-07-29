@@ -34,36 +34,34 @@ import java.util.List;
 /**
  * Фаркоп.
  *
- * Два фаркопа соединяются жёстким валом Create фиксированной длины
- * {@link #COUPLING_LENGTH}. Вал горизонтальный: перепад по высоте между
- * точками крепления не должен превышать {@link #MAX_VERTICAL_OFFSET}.
+ * Два фаркопа соединяются жёстким горизонтальным валом Create.
+ *
+ * Длина вала замеряется в момент соединения и дальше не меняется:
+ * сцепка жёсткая, физика удерживает именно это расстояние. Допустимый
+ * диапазон — от {@link #MIN_COUPLING_LENGTH} до {@link #MAX_COUPLING_LENGTH},
+ * так что фаркопы можно ставить и вплотную, и в четырёх блоках
+ * друг от друга. Телепорта sublevel нет: номинал равен фактическому
+ * расстоянию на момент клика.
+ *
+ * Вал горизонтальный: перепад по высоте между точками крепления
+ * не должен превышать {@link #MAX_VERTICAL_OFFSET}.
  *
  * Физически это generic-constraint Sable между двумя sublevel:
  * LINEAR_X/Y/Z и ANGULAR_Z заблокированы, ANGULAR_X/Y свободны, поэтому
  * прицеп поворачивает влево-вправо и складывается вверх-вниз, но не
  * прокручивается вокруг продольной оси вала.
- *
- * Ключевое отличие от прежней версии: длина больше не берётся из
- * расстояния в момент клика. Якорь второго фаркопа вычисляется из
- * фиксированной длины, поэтому вал всегда одинаковый. Телепорта
- * sublevel при этом нет: соединение разрешено только если фактическое
- * расстояние уже находится в пределах {@link #COUPLING_LENGTH_TOLERANCE},
- * так что физике остаётся довести геометрию на считанные сантиметры.
  */
 public class TowbarBlockEntity extends SmartBlockEntity
         implements RopeStrandHolderBlockEntity {
 
-    /** Фиксированная длина вала-сцепки в блоках. */
-    public static final double COUPLING_LENGTH = 2.0D;
+    /** Максимальная длина вала-сцепки в блоках. */
+    public static final double MAX_COUPLING_LENGTH = 4.0D;
 
-    /** Насколько фактическое расстояние может отличаться от номинала. */
-    public static final double COUPLING_LENGTH_TOLERANCE = 0.45D;
+    /** Минимальная длина: ниже не определить направление вала. */
+    public static final double MIN_COUPLING_LENGTH = 0.05D;
 
     /** Максимальный перепад по высоте: вал должен быть горизонтальным. */
-    public static final double MAX_VERTICAL_OFFSET = 0.4D;
-
-    /** Минимальная горизонтальная проекция, ниже которой направление не определить. */
-    private static final double MIN_HORIZONTAL_LENGTH = 0.05D;
+    public static final double MAX_VERTICAL_OFFSET = 0.75D;
 
     /** Пауза между попытками пересоздать констрейнт, в тиках. */
     private static final int CONSTRAINT_RETRY_INTERVAL = 20;
@@ -75,6 +73,9 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
     private BlockPos couplingTarget;
     private boolean couplingOwner;
+
+    /** Замеренная в момент клика длина вала. */
+    private double couplingLength;
 
     private PhysicsConstraintHandle couplingConstraint;
 
@@ -141,10 +142,18 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     /**
-     * Длина вала для рендера. Всегда фиксированная.
+     * Длина вала, зафиксированная при соединении.
      */
     public double getCouplingLength() {
-        return COUPLING_LENGTH;
+        return couplingLength;
+    }
+
+    /**
+     * Горизонтальная проекция расстояния: вал горизонтальный,
+     * поэтому вертикальную составляющую в длину не считаем.
+     */
+    private static double horizontalLength(final Vec3 delta) {
+        return Math.sqrt(delta.x * delta.x + delta.z * delta.z);
     }
 
     /**
@@ -157,7 +166,8 @@ public class TowbarBlockEntity extends SmartBlockEntity
         SAME_TOWBAR("carwinch.coupling.failed.same"),
         ALREADY_COUPLED("carwinch.coupling.occupied"),
         NOT_HORIZONTAL("carwinch.coupling.failed.horizontal"),
-        WRONG_LENGTH("carwinch.coupling.failed.length"),
+        TOO_FAR("carwinch.coupling.failed.length"),
+        TOO_CLOSE("carwinch.coupling.failed.too_close"),
         NOT_ON_CONTRAPTION("carwinch.coupling.failed.contraption"),
         SAME_CONTRAPTION("carwinch.coupling.failed.same_contraption"),
         PHYSICS_FAILED("carwinch.coupling.failed.physics");
@@ -208,22 +218,18 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         final Vec3 globalDelta = secondGlobal.subtract(firstGlobal);
 
-        // Вал горизонтальный, поэтому длину считаем по горизонтальной проекции.
-        final double horizontalLength =
-                Math.sqrt(globalDelta.x * globalDelta.x
-                        + globalDelta.z * globalDelta.z);
+        final double length = horizontalLength(globalDelta);
 
         if (Math.abs(globalDelta.y) > MAX_VERTICAL_OFFSET) {
             return CouplingResult.NOT_HORIZONTAL;
         }
 
-        if (horizontalLength < MIN_HORIZONTAL_LENGTH) {
-            return CouplingResult.WRONG_LENGTH;
+        if (length < MIN_COUPLING_LENGTH) {
+            return CouplingResult.TOO_CLOSE;
         }
 
-        if (Math.abs(horizontalLength - COUPLING_LENGTH)
-                > COUPLING_LENGTH_TOLERANCE) {
-            return CouplingResult.WRONG_LENGTH;
+        if (length > MAX_COUPLING_LENGTH) {
+            return CouplingResult.TOO_FAR;
         }
 
         final ServerSubLevel firstSubLevel =
@@ -242,10 +248,12 @@ public class TowbarBlockEntity extends SmartBlockEntity
 
         first.couplingTarget = second.worldPosition;
         first.couplingOwner = true;
+        first.couplingLength = length;
         first.resetRetryState();
 
         second.couplingTarget = first.worldPosition;
         second.couplingOwner = false;
+        second.couplingLength = length;
         second.resetRetryState();
 
         first.markUpdated();
@@ -286,6 +294,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
         removePhysicsConstraint();
         couplingTarget = null;
         couplingOwner = false;
+        couplingLength = 0.0D;
         resetRetryState();
     }
 
@@ -305,12 +314,12 @@ public class TowbarBlockEntity extends SmartBlockEntity
     }
 
     /**
-     * Строит физический вал фиксированной длины.
+     * Строит физический вал зафиксированной длины.
      *
      * Оба якоря описывают одну и ту же точку joint в мировой системе,
      * но в локальных координатах разных sublevel. Якорь второго фаркопа
-     * сдвинут назад по оси вала ровно на {@link #COUPLING_LENGTH}, поэтому
-     * констрейнт удерживает не текущую, а номинальную длину.
+     * сдвинут назад по оси вала ровно на запомненную длину, поэтому
+     * сцепка жёсткая и не растягивается со временем.
      */
     private boolean createPhysicsConstraint() {
         if (!couplingOwner
@@ -356,11 +365,27 @@ public class TowbarBlockEntity extends SmartBlockEntity
                 );
 
         if (worldDirection.lengthSquared()
-                < MIN_HORIZONTAL_LENGTH * MIN_HORIZONTAL_LENGTH) {
+                < MIN_COUPLING_LENGTH * MIN_COUPLING_LENGTH) {
             return false;
         }
 
         worldDirection.normalize();
+
+        /*
+         * Если длина потерялась (например, мир из старой версии),
+         * замеряем её заново и запоминаем.
+         */
+        if (couplingLength < MIN_COUPLING_LENGTH) {
+            couplingLength = Math.min(
+                    horizontalLength(globalB.subtract(globalA)),
+                    MAX_COUPLING_LENGTH
+            );
+
+            target.couplingLength = couplingLength;
+
+            markUpdated();
+            target.markUpdated();
+        }
 
         final Vector3d localAnchorA =
                 new Vector3d(localA.x, localA.y, localA.z);
@@ -368,13 +393,13 @@ public class TowbarBlockEntity extends SmartBlockEntity
         /*
          * Точка второго тела, которая должна совпасть с якорем первого:
          * его точка крепления, отодвинутая назад по оси вала на
-         * номинальную длину. Именно это и задаёт фиксированный размер.
+         * запомненную длину. Именно это и держит дистанцию постоянной.
          */
         final Vector3d worldAnchorB =
                 new Vector3d(
-                        globalB.x - worldDirection.x * COUPLING_LENGTH,
+                        globalB.x - worldDirection.x * couplingLength,
                         globalB.y,
-                        globalB.z - worldDirection.z * COUPLING_LENGTH
+                        globalB.z - worldDirection.z * couplingLength
                 );
 
         final Vector3d localAnchorB =
@@ -605,7 +630,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
         }
 
         return new AABB(worldPosition)
-                .inflate(COUPLING_LENGTH + 1.0D);
+                .inflate(MAX_COUPLING_LENGTH + 1.0D);
     }
 
     @Override
@@ -624,6 +649,7 @@ public class TowbarBlockEntity extends SmartBlockEntity
         }
 
         tag.putBoolean("CouplingOwner", couplingOwner);
+        tag.putDouble("CouplingLength", couplingLength);
     }
 
     @Override
@@ -644,6 +670,10 @@ public class TowbarBlockEntity extends SmartBlockEntity
         couplingOwner =
                 tag.getBoolean("CouplingOwner");
 
-        // "CouplingLength" из старых миров игнорируем: длина теперь константа.
+        couplingLength =
+                Math.min(
+                        tag.getDouble("CouplingLength"),
+                        MAX_COUPLING_LENGTH
+                );
     }
 }
