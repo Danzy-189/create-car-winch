@@ -3,6 +3,7 @@ package dev.danzy.carwinch.content.towbar;
 import com.mojang.serialization.MapCodec;
 import com.simibubi.create.content.equipment.wrench.IWrenchable;
 import com.simibubi.create.foundation.block.IBE;
+import dev.danzy.carwinch.content.rope.CarWinchRopeHelper;
 import dev.danzy.carwinch.registry.CWBlockEntities;
 import dev.ryanhcode.sable.api.block.BlockSubLevelAssemblyListener;
 import dev.ryanhcode.sable.api.block.BlockSubLevelCollisionShape;
@@ -11,6 +12,7 @@ import dev.simulated_team.simulated.index.SimTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.sounds.SoundEvents;
@@ -228,6 +230,22 @@ public class TowbarBlock extends Block
             return ItemInteractionResult.SUCCESS;
         }
 
+        /*
+         * Обычной верёвкой Simulated наши блоки соединять нельзя: только
+         * стальным тросом. Клик гасим и на клиенте, иначе RopeItem успеет
+         * запомнить точку в своём дата-компоненте.
+         */
+        if (CarWinchRopeHelper.isPlainRope(stack)) {
+            if (!level.isClientSide && player != null) {
+                player.displayClientMessage(
+                        Component.translatable("carwinch.rope.wrong_item"),
+                        true
+                );
+            }
+
+            return ItemInteractionResult.SUCCESS;
+        }
+
         if (level.isClientSide) {
             return super.useItemOn(
                     stack,
@@ -241,6 +259,9 @@ public class TowbarBlock extends Block
         }
 
         /*
+         * Ножницы и прочие режущие трос предметы. Своя реализация вместо
+         * RopeHolderBlock.shearRope, чтобы выпадал стальной трос, а не верёвка.
+         *
          * Раньше здесь был безусловный каст (ServerPlayer) player, из-за чего
          * взаимодействие от не-игрока (фейковые игроки автоматизации)
          * падало с ClassCastException.
@@ -248,12 +269,9 @@ public class TowbarBlock extends Block
         if (stack.is(SimTags.Items.DESTROYS_ROPE)
                 && player instanceof ServerPlayer serverPlayer) {
 
-            return RopeHolderBlock.shearRope(
-                    this,
-                    level,
-                    pos,
-                    serverPlayer
-            );
+            return CarWinchRopeHelper.destroyRopeAndDropSteel(level, pos, serverPlayer)
+                    ? ItemInteractionResult.SUCCESS
+                    : ItemInteractionResult.FAIL;
         }
 
         return super.useItemOn(
@@ -277,6 +295,12 @@ public class TowbarBlock extends Block
     ) {
         if (!state.is(newState.getBlock())) {
             TowbarBlockEntity.detachCoupling(level, pos);
+
+            /*
+             * Снимаем трос до IBE.onRemove: иначе его разорвёт сам Simulated
+             * и вернёт игроку свою верёвку вместо стального троса.
+             */
+            CarWinchRopeHelper.destroyRopeAndDropSteel(level, pos, null);
         }
 
         IBE.onRemove(state, level, pos, newState);
