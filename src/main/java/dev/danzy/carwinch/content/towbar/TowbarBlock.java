@@ -55,15 +55,25 @@ public class TowbarBlock extends Block
     private static final ResourceLocation WRENCH_ID =
             ResourceLocation.fromNamespaceAndPath("create", "wrench");
 
-    private static final VoxelShape SHAPE =
-            Shapes.box(
-                    0.1875,
-                    0.0,
-                    0.1875,
-                    0.8125,
-                    0.625,
-                    0.8125
-            );
+    /*
+     * Хитбоксы повторяют новую модель (плита крепления + две направляющие + зажим),
+     * геометрия которой взята у rope_connector. Модель направленная, поэтому
+     * форма своя для каждого направления, иначе по блоку неудобно попадать.
+     */
+    private static final VoxelShape SHAPE_SOUTH =
+            Shapes.box(0.125, 0.125, 0.25, 0.875, 0.875, 0.8125);
+
+    private static final VoxelShape SHAPE_NORTH =
+            Shapes.box(0.125, 0.125, 0.1875, 0.875, 0.875, 0.75);
+
+    private static final VoxelShape SHAPE_EAST =
+            Shapes.box(0.25, 0.125, 0.125, 0.8125, 0.875, 0.875);
+
+    private static final VoxelShape SHAPE_WEST =
+            Shapes.box(0.1875, 0.125, 0.125, 0.75, 0.875, 0.875);
+
+    private static final VoxelShape SHAPE_VERTICAL =
+            Shapes.box(0.125, 0.125, 0.125, 0.875, 0.875, 0.875);
 
     public TowbarBlock(final Properties properties) {
         super(properties);
@@ -127,7 +137,13 @@ public class TowbarBlock extends Block
             final BlockPos pos,
             final CollisionContext context
     ) {
-        return SHAPE;
+        return switch (state.getValue(FACING)) {
+            case SOUTH -> SHAPE_SOUTH;
+            case NORTH -> SHAPE_NORTH;
+            case EAST -> SHAPE_EAST;
+            case WEST -> SHAPE_WEST;
+            default -> SHAPE_VERTICAL;
+        };
     }
 
     @Override
