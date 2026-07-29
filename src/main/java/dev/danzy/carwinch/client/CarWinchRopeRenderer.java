@@ -28,6 +28,14 @@ import java.util.List;
 
 public final class CarWinchRopeRenderer {
 
+    /**
+     * Серый металлический оттенок троса.
+     * Модели rope и knot берут текстуру железа, а тинт добавляет ей
+     * чуть более тёмный стальной тон, чтобы трос не выглядел как
+     * белый шнур.
+     */
+    private static final int STEEL_TINT = 0xC2C6CC;
+
     private CarWinchRopeRenderer() {
     }
 
@@ -173,11 +181,12 @@ public final class CarWinchRopeRenderer {
                     );
 
             /*
-             * Узлы между сегментами.
-             * Сейчас используется та же модель rope.json.
+             * Узлы между сегментами: отдельная модель knot.json,
+             * геометрия как у Create: Aeronautics.
              */
             if (i > 1) {
-                knot.light(worldLight)
+                knot.color(STEEL_TINT)
+                        .light(worldLight)
                         .renderInto(
                                 poseStack,
                                 vertexConsumer
@@ -196,7 +205,8 @@ public final class CarWinchRopeRenderer {
                     1.0F
             );
 
-            middle.light(worldLight)
+            middle.color(STEEL_TINT)
+                    .light(worldLight)
                     .renderInto(
                             poseStack,
                             vertexConsumer
