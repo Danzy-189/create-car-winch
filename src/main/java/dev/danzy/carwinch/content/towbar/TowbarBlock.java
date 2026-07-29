@@ -121,9 +121,12 @@ public class TowbarBlock extends Block
      * Подсказка в инвентаре. Порядок кликов сцепкой важен: первый клик —
      * сторона шара, то есть ведущая машина, второй — прицеп. Из самой игры
      * это никак не следовало, поэтому пишем прямо в описании предмета.
+     *
+     * Важно: BlockBehaviour объявляет метод protected, но Block расширяет его до
+     * public, поэтому переопределять его нужно именно public.
      */
     @Override
-    protected void appendHoverText(
+    public void appendHoverText(
             final ItemStack stack,
             final Item.TooltipContext context,
             final List<Component> tooltipComponents,
