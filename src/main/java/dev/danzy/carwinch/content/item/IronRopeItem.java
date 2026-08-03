@@ -1,7 +1,6 @@
 package dev.danzy.carwinch.content.item;
 
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
-import dev.danzy.carwinch.content.towbar.TowbarBlockEntity;
 import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
 import dev.danzy.carwinch.registry.CWDataComponents;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBehavior;
@@ -25,8 +24,14 @@ import java.util.List;
 /**
  * Стальной трос.
  *
- * Первый клик выбирает лебёдку или буксир, второй соединяет их через Simulated.
+ * Первый клик выбирает лебёдку, второй - вторую точку крепления.
  * Shift + ПКМ очищает выбор.
+ *
+ * Второй точкой может быть любой держатель троса Simulated: наш фаркоп,
+ * rope connector, rope winch и всё, что реализует RopeStrandHolderBlockEntity.
+ * Единственное жёсткое требование - один из двух концов должен быть нашей
+ * лебёдкой: именно она владеет тросом, наматывает его и выдаёт стальной трос
+ * обратно при снятии.
  *
  * Вся логика и все сообщения выполняются на сервере: дата-компонент с якорем
  * сам синхронизируется на клиент, поэтому раньше клиентская правка стека
@@ -39,11 +44,14 @@ import java.util.List;
  */
 public class IronRopeItem extends Item {
 
+    private static final String ERROR_GENERIC = "carwinch.rope.failed";
+    private static final String ERROR_NO_WINCH = "carwinch.rope.failed.no_winch";
+
     public IronRopeItem(final Properties properties) {
         super(properties);
     }
 
-    /** Возвращает rope holder по позиции, либо null если там не наш блок. */
+    /** Возвращает rope holder по позиции, либо null если там нет держателя троса. */
     @Nullable
     public static RopeStrandHolderBehavior getRopeHolder(@Nullable final Level level,
                                                         @Nullable final BlockPos pos) {
@@ -61,14 +69,6 @@ public class IronRopeItem extends Item {
 
     private static boolean isWinch(@Nullable final RopeStrandHolderBehavior holder) {
         return holder != null && holder.blockEntity instanceof CarWinchBlockEntity;
-    }
-
-    private static boolean isTowbar(@Nullable final RopeStrandHolderBehavior holder) {
-        return holder != null && holder.blockEntity instanceof TowbarBlockEntity;
-    }
-
-    private static boolean isValidAnchor(@Nullable final RopeStrandHolderBehavior holder) {
-        return isWinch(holder) || isTowbar(holder);
     }
 
     private static void clearSelection(final ItemStack stack) {
@@ -91,8 +91,8 @@ public class IronRopeItem extends Item {
         final RopeStrandHolderBehavior clicked = getRopeHolder(level, clickedPos);
         final boolean sneaking = player != null && player.isShiftKeyDown();
 
-        // Клик по постороннему блоку без Shift обычному поведению не мешаем.
-        if (!sneaking && !isValidAnchor(clicked)) {
+        // Клик по блоку без держателя троса и без Shift обычному поведению не мешаем.
+        if (!sneaking && clicked == null) {
             return super.useOn(context);
         }
 
@@ -118,7 +118,9 @@ public class IronRopeItem extends Item {
         // Первый клик - запоминаем якорь.
         if (firstPos == null) {
             stack.set(CWDataComponents.FIRST_CONNECTION.get(), clickedPos);
-            notify(player, "carwinch.rope.selected");
+            notify(player, isWinch(clicked)
+                    ? "carwinch.rope.selected"
+                    : "carwinch.rope.selected.other");
             return InteractionResult.SUCCESS;
         }
 
@@ -129,15 +131,15 @@ public class IronRopeItem extends Item {
             return InteractionResult.SUCCESS;
         }
 
-        final boolean hitched = this.hitch(level, firstPos, clickedPos);
+        final String error = this.hitch(level, firstPos, clickedPos);
         clearSelection(stack);
 
-        if (hitched) {
+        if (error == null) {
             if (player != null && !player.hasInfiniteMaterials()) {
                 stack.shrink(1);
             }
         } else {
-            notify(player, "carwinch.rope.failed");
+            notify(player, error);
         }
 
         return InteractionResult.SUCCESS;
@@ -145,41 +147,49 @@ public class IronRopeItem extends Item {
 
     /**
      * Создаёт трос. Владельцем всегда становится лебёдка - именно она наматывает.
+     *
+     * @return null при успехе, иначе ключ сообщения об ошибке
      */
-    private boolean hitch(final Level level, final BlockPos posA, final BlockPos posB) {
+    @Nullable
+    private String hitch(final Level level, final BlockPos posA, final BlockPos posB) {
         final RopeStrandHolderBehavior a = getRopeHolder(level, posA);
         final RopeStrandHolderBehavior b = getRopeHolder(level, posB);
 
-        if (a == null || b == null || a.isAttached() || b.isAttached()) {
-            return false;
+        if (a == null || b == null || a == b || a.isAttached() || b.isAttached()) {
+            return ERROR_GENERIC;
         }
 
+        /*
+         * Второй конец - любой держатель троса Simulated: фаркоп, rope connector,
+         * rope winch. Проверяем только то, что лебёдка есть хотя бы с одной стороны.
+         */
         final RopeStrandHolderBehavior winch;
-        final RopeStrandHolderBehavior towbar;
+        final RopeStrandHolderBehavior other;
 
-        if (isWinch(a) && isTowbar(b)) {
+        if (isWinch(a)) {
             winch = a;
-            towbar = b;
-        } else if (isTowbar(a) && isWinch(b)) {
+            other = b;
+        } else if (isWinch(b)) {
             winch = b;
-            towbar = a;
+            other = a;
         } else {
-            return false;
+            return ERROR_NO_WINCH;
         }
 
-        if (!winch.createRope(towbar, false)) {
-            return false;
+        if (!winch.createRope(other, false)) {
+            return ERROR_GENERIC;
         }
 
         level.playSound(null, posA, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
         level.playSound(null, posB, SoundEvents.CHAIN_PLACE, SoundSource.BLOCKS, 0.7F, 0.8F);
-        return true;
+        return null;
     }
 
     @Override
     public void appendHoverText(final ItemStack stack, final TooltipContext context,
                                final List<Component> tooltip, final TooltipFlag flag) {
         tooltip.add(Component.translatable("carwinch.rope.tooltip").withStyle(ChatFormatting.GRAY));
+        tooltip.add(Component.translatable("carwinch.rope.tooltip.targets").withStyle(ChatFormatting.DARK_GRAY));
 
         final BlockPos firstPos = stack.get(CWDataComponents.FIRST_CONNECTION.get());
         if (firstPos != null) {
