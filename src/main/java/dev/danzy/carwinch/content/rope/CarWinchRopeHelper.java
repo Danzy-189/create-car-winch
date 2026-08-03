@@ -1,6 +1,7 @@
 package dev.danzy.carwinch.content.rope;
 
 import com.simibubi.create.foundation.blockEntity.SmartBlockEntity;
+import dev.danzy.carwinch.content.winch.CarWinchBlockEntity;
 import dev.danzy.carwinch.registry.CWItems;
 import dev.simulated_team.simulated.content.blocks.rope.RopeStrandHolderBehavior;
 import dev.simulated_team.simulated.content.blocks.rope.strand.server.RopeAttachment;
@@ -17,12 +18,17 @@ import net.minecraft.world.phys.Vec3;
 import org.jetbrains.annotations.Nullable;
 
 /**
- * Общая логика троса для лебёдки и фаркопа.
+ * Общая логика троса для лебёдки, фаркопа и чужих держателей троса.
  * <p>
- * Зачем нужен: Simulated сам решает, что вернуть игроку при разрушении
+ * Зачем нужна: Simulated сам решает, что вернуть игроку при разрушении
  * троса, и возвращает свою верёвку (SimItems.ROPE_COUPLING). Нам нужен
  * свой стальной трос, поэтому рвём трос с returnItem = false и выдаём
  * предмет сами.
+ * <p>
+ * Трос всегда принадлежит лебёдке, но снять его можно с любого конца,
+ * в том числе с rope connector из Simulated. Поэтому проверка
+ * {@link #isRopeOwnedByWinch} работает по владельцу троса, а не по блоку,
+ * по которому кликнули.
  */
 public final class CarWinchRopeHelper {
 
@@ -57,7 +63,7 @@ public final class CarWinchRopeHelper {
 
     /**
      * Владелец троса. Рвать трос умеет только владелец (у нас это всегда
-     * лебёдка), поэтому при клике по фаркопу надо найти второй конец.
+     * лебёдка), поэтому при клике по второму концу надо найти первый.
      */
     @Nullable
     private static RopeStrandHolderBehavior ownerOf(
@@ -79,6 +85,29 @@ public final class CarWinchRopeHelper {
         }
 
         return holderAt(level, start.blockAttachment());
+    }
+
+    /**
+     * true, если на этой позиции есть трос и владеет им наша лебёдка.
+     * Позиция может быть любым концом троса: лебёдкой, фаркопом или
+     * rope connector из Simulated.
+     */
+    public static boolean isRopeOwnedByWinch(
+            @Nullable final Level level,
+            @Nullable final BlockPos pos
+    ) {
+        if (level == null || level.isClientSide()) {
+            return false;
+        }
+
+        final RopeStrandHolderBehavior holder = holderAt(level, pos);
+        if (holder == null || !holder.isAttached()) {
+            return false;
+        }
+
+        final RopeStrandHolderBehavior owner = ownerOf(level, holder);
+
+        return owner != null && owner.blockEntity instanceof CarWinchBlockEntity;
     }
 
     /**
